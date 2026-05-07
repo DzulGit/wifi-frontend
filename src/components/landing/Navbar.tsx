@@ -20,7 +20,7 @@ export default function Navbar() {
           <Link href="#" className="text-amber-500 font-semibold">Beranda</Link>
           <Link href="#fitur" className="hover:text-white transition">Fitur</Link>
           <Link href="#paket" className="hover:text-white transition">Daftar Paket</Link>
-          <Link href="#cara" className="hover:text-white transition">Cara Daftar</Link>
+          <Link href="#cara-daftar" className="hover:text-white transition">Cara Daftar</Link>
         </div>
 
         {/* CTA Desktop */}
