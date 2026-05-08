@@ -1,94 +1,104 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { CheckCircle2, XCircle, Loader2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, ArrowRight, Lock, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
-// Kita pisahkan kontennya agar aman menggunakan useSearchParams di Next.js App Router
 function ActivateContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get('token');
   
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    // Jika tidak ada token di URL, langsung hentikan
-    if (!token) {
+  const handleActivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return toast.error("Token tidak valid");
+    if (password.length < 8) return toast.error("Password minimal 8 karakter");
+
+    try {
+      setStatus('loading');
+      // SEKARANG KITA KIRIM TOKEN DAN PASSWORD SESUAI KEBUTUHAN BACKEND
+      await api.post('/auth/activate', { token, password });
+      setStatus('success');
+    } catch (error: any) {
       setStatus('error');
-      setMessage('Token aktivasi tidak ditemukan atau tidak valid.');
-      return;
+      setMessage(error.response?.data?.message || 'Gagal mengaktifkan akun.');
     }
+  };
 
-    const verifyAccount = async () => {
-      try {
-        // Sesuaikan endpoint ini dengan backend temenmu (misal: /auth/activate atau /users/activate)
-        await api.post('/auth/activate', { token });
-        setStatus('success');
-      } catch (error: any) {
-        setStatus('error');
-        setMessage(error.response?.data?.message || 'Gagal mengaktifkan akun. Token mungkin sudah kadaluarsa.');
-      }
-    };
-
-    verifyAccount();
-  }, [token]);
+  if (status === 'success') {
+    return (
+      <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 max-w-md w-full text-center animate-in fade-in zoom-in duration-500">
+        <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mb-6 mx-auto border border-green-500/20">
+          <CheckCircle2 className="w-12 h-12 text-green-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Aktivasi Berhasil!</h2>
+        <p className="text-white/50 text-sm mb-8">Akun Anda aktif dan password telah disimpan. Silakan masuk.</p>
+        <Link href="/login" className="w-full">
+          <button className="w-full bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+            Masuk Sekarang <ArrowRight className="w-4 h-4" />
+          </button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative z-10">
-      {status === 'loading' && (
-        <div className="flex flex-col items-center py-4">
-          <Loader2 className="w-16 h-16 text-[#F5A623] animate-spin mb-6" />
-          <h2 className="text-2xl font-bold text-white mb-2">Memverifikasi Akun</h2>
-          <p className="text-white/50 text-sm">Sedang memproses aktivasi akun CAKRANA Anda...</p>
-        </div>
-      )}
+    <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-white mb-2">Aktivasi Akun</h2>
+        <p className="text-white/50 text-sm">Silakan buat password untuk mengaktifkan akun Anda.</p>
+      </div>
 
-      {status === 'success' && (
-        <div className="flex flex-col items-center py-4 animate-in fade-in zoom-in duration-500">
-          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mb-6 border border-green-500/20">
-            <CheckCircle2 className="w-12 h-12 text-green-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Akun Berhasil Aktif!</h2>
-          <p className="text-white/50 text-sm mb-8">Selamat! Akun Anda telah berhasil diverifikasi. Silakan masuk untuk melanjutkan.</p>
-          <Link href="/login" className="w-full">
-            <button className="w-full bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-              Masuk ke Dashboard <ArrowRight className="w-4 h-4" />
+      <form onSubmit={handleActivate} className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-white/50 text-xs font-bold uppercase ml-1">Buat Password Baru</label>
+          <div className="relative group">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-[#F5A623] transition-colors" />
+            <input 
+              type={showPass ? "text" : "password"} 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Minimal 8 karakter"
+              className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:border-[#F5A623]/50 transition-all"
+              required
+            />
+            <button 
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50"
+            >
+              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
-          </Link>
+          </div>
         </div>
-      )}
 
-      {status === 'error' && (
-        <div className="flex flex-col items-center py-4 animate-in fade-in zoom-in duration-500">
-          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
-            <XCircle className="w-12 h-12 text-red-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Verifikasi Gagal</h2>
-          <p className="text-red-400/80 text-sm mb-8">{message}</p>
-          <Link href="/login" className="w-full">
-            <button className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-xl transition-all border border-white/10">
-              Kembali ke Login
-            </button>
-          </Link>
-        </div>
-      )}
+        <button 
+          type="submit" 
+          disabled={status === 'loading'}
+          className="w-full bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+        >
+          {status === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" /> : "Aktifkan Akun Saya"}
+        </button>
+
+        {status === 'error' && (
+          <p className="text-red-500 text-xs text-center mt-4 font-medium italic">{message}</p>
+        )}
+      </form>
     </div>
   );
 }
 
-// Ini adalah DEFAULT EXPORT yang diminta oleh Next.js
 export default function ActivatePage() {
   return (
     <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Ornamen */}
       <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#F5A623]/5 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#F5A623]/5 rounded-full blur-[120px]" />
-      
-      {/* Suspense wajib ada jika menggunakan useSearchParams di Client Component Next.js 13+ */}
       <Suspense fallback={<Loader2 className="w-10 h-10 animate-spin text-[#F5A623]" />}>
         <ActivateContent />
       </Suspense>
