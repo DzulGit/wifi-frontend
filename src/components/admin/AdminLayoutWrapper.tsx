@@ -14,15 +14,17 @@ interface AdminLayoutWrapperProps {
 }
 
 export default function AdminLayoutWrapper({ children, title, subtitle }: AdminLayoutWrapperProps) {
-  const { isAuthenticated, isAdmin } = useAuthStore()
+  const { isAuthenticated, isAdmin, _hasHydrated } = useAuthStore()
   const router = useRouter()
   const [pendingCount, setPendingCount] = useState(0)
   const [paymentCount, setPaymentCount] = useState(0)
   const [ticketCount, setTicketCount] = useState(0)
+  
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push('/login'); return }
-    if (!isAdmin) { router.push('/dashboard'); return }
+  if (!_hasHydrated) return  // tunggu dulu sampai localStorage selesai dibaca
+  if (!isAuthenticated) { router.push('/admin/login'); return }
+  if (!isAdmin) { router.push('/dashboard'); return }
 
     // Fetch badge counts
     const fetchCounts = async () => {
@@ -40,7 +42,7 @@ export default function AdminLayoutWrapper({ children, title, subtitle }: AdminL
     fetchCounts()
   }, [isAuthenticated, isAdmin, router])
 
-  if (!isAuthenticated || !isAdmin) return null
+  if (!_hasHydrated || !isAuthenticated || !isAdmin) return null
 
   return (
     <div className="min-h-screen bg-[#F4F4F5]">

@@ -384,7 +384,7 @@ export default function PembayaranPage() {
                         {pay.status === 'PENDING' && (
                           <>
                             <button
-                              onClick={() => handleReject(pay.id, prompt('Alasan penolakan:') ?? '')}
+                              onClick={() => { const reason = prompt('Alasan penolakan:'); if (reason !== null) handleReject(pay.id, reason); }}
                               className="w-7 h-7 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition-colors"
                             >
                               <XCircle className="w-3.5 h-3.5" />
