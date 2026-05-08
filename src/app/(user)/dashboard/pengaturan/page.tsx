@@ -22,7 +22,7 @@ export default function PengaturanPage() {
   
   // State Profil
   const [fullName, setFullName] = useState(user?.fullName || '');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // State Password
