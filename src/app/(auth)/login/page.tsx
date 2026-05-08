@@ -49,21 +49,29 @@ function BackgroundGrid() {
       />
       {/* Glow blobs */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#F5A623]/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#F5A623]/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }} />
+      <div
+        className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#F5A623]/5 rounded-full blur-3xl animate-pulse"
+        style={{ animationDelay: '1.5s' }}
+      />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#F5A623]/3 rounded-full blur-3xl" />
     </div>
   );
 }
 
 // ── Password Input with toggle ─────────────────────────────────
-function PasswordInput({ field, placeholder }: { field: any; placeholder: string }) {
+function PasswordInput({
+  field,
+  placeholder,
+}: {
+  field: any;
+  placeholder: string;
+}) {
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
       <Input
-        type={show ? 'text' : 'password'}
-        placeholder={placeholder}
-        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 pr-10 focus:border-[#F5A623]/50 focus:ring-[#F5A623]/20 rounded-xl h-12"
+        placeholder="email@contoh.com"
+        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 pl-10 focus:border-[#F5A623]/50 rounded-xl h-12 [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_1000px_#1A1A1A_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:white]"
         {...field}
       />
       <button
@@ -83,11 +91,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
+
   // Hanya ambil setToken dan setUser (hapus setAdmin)
   const { setToken, setUser } = useAuthStore();
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const formPassword = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -106,11 +116,14 @@ export default function LoginPage() {
       const { data } = await api.post('/auth/login', values);
       setToken(data.token);
       setUser(data.user);
-      toast.success('Login berhasil!', { description: `Selamat datang, ${data.user.fullName}` });
+      toast.success('Login berhasil!', {
+        description: `Selamat datang, ${data.user.fullName}`,
+      });
       router.push('/dashboard');
     } catch (error: any) {
       toast.error('Login Gagal', {
-        description: error.response?.data?.message || 'Email atau password salah.',
+        description:
+          error.response?.data?.message || 'Email atau password salah.',
       });
     } finally {
       setIsLoading(false);
@@ -130,10 +143,13 @@ export default function LoginPage() {
       setIsLoading(true);
       await api.post('/auth/send-otp', { email });
       setOtpSent(true);
-      toast.success('OTP Terkirim!', { description: 'Cek kotak masuk Gmail Anda.' });
+      toast.success('OTP Terkirim!', {
+        description: 'Cek kotak masuk Gmail Anda.',
+      });
     } catch (error: any) {
       toast.error('Gagal mengirim OTP', {
-        description: error.response?.data?.message || 'Pastikan email terdaftar.',
+        description:
+          error.response?.data?.message || 'Pastikan email terdaftar.',
       });
     } finally {
       setIsLoading(false);
@@ -154,11 +170,14 @@ export default function LoginPage() {
       });
       setToken(data.token);
       setUser(data.user);
-      toast.success('Login berhasil!', { description: 'Verifikasi OTP sukses.' });
+      toast.success('Login berhasil!', {
+        description: 'Verifikasi OTP sukses.',
+      });
       router.push('/dashboard');
     } catch (error: any) {
       toast.error('Verifikasi Gagal', {
-        description: error.response?.data?.message || 'Kode OTP salah atau kadaluarsa.',
+        description:
+          error.response?.data?.message || 'Kode OTP salah atau kadaluarsa.',
       });
     } finally {
       setIsLoading(false);
@@ -173,24 +192,32 @@ export default function LoginPage() {
 
       <div
         className="w-full max-w-md relative z-10 transition-all duration-500"
-        style={{ opacity: mounted ? 1 : 0, transform: mounted ? 'translateY(0)' : 'translateY(20px)' }}
+        style={{
+          opacity: mounted ? 1 : 0,
+          transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+        }}
       >
         {/* ── Header ─────────────────────────────────────── */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#F5A623]/10 border border-[#F5A623]/20 mb-4">
             <Wifi className="w-8 h-8 text-[#F5A623]" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-wider">CAKRANA</h1>
-          <p className="text-white/40 text-sm mt-1 tracking-widest uppercase">Portal Pelanggan</p>
+          <h1 className="text-3xl font-bold text-white tracking-wider">
+            CAKRANA
+          </h1>
+          <p className="text-white/40 text-sm mt-1 tracking-widest uppercase">
+            Portal Pelanggan
+          </p>
         </div>
 
         {/* ── Card ───────────────────────────────────────── */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden">
-          
           <div className="p-8">
             <div className="mb-6">
               <h2 className="text-white font-bold text-xl">Masuk ke Akun</h2>
-              <p className="text-white/40 text-sm mt-1">Pilih metode masuk yang Anda inginkan</p>
+              <p className="text-white/40 text-sm mt-1">
+                Pilih metode masuk yang Anda inginkan
+              </p>
             </div>
 
             <Tabs defaultValue="password" className="w-full">
@@ -212,19 +239,24 @@ export default function LoginPage() {
               {/* Tab Password */}
               <TabsContent value="password">
                 <Form {...formPassword}>
-                  <form onSubmit={formPassword.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                  <form
+                    onSubmit={formPassword.handleSubmit(onPasswordSubmit)}
+                    className="space-y-4"
+                  >
                     <FormField
                       control={formPassword.control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">Email</FormLabel>
+                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">
+                            Email
+                          </FormLabel>
                           <FormControl>
                             <div className="relative">
                               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                               <Input
                                 placeholder="email@contoh.com"
-                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 pl-10 focus:border-[#F5A623]/50 rounded-xl h-12"
+                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 pl-10 focus:border-[#F5A623]/50 rounded-xl h-12 [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_1000px_#1A1A1A_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:white]"
                                 {...field}
                               />
                             </div>
@@ -238,9 +270,14 @@ export default function LoginPage() {
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">Password</FormLabel>
+                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">
+                            Password
+                          </FormLabel>
                           <FormControl>
-                            <PasswordInput field={field} placeholder="••••••••" />
+                            <PasswordInput
+                              field={field}
+                              placeholder="••••••••"
+                            />
                           </FormControl>
                           <FormMessage className="text-red-400 text-xs" />
                         </FormItem>
@@ -254,7 +291,9 @@ export default function LoginPage() {
                       {isLoading ? (
                         <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <>Masuk <ArrowRight className="w-4 h-4" /></>
+                        <>
+                          Masuk <ArrowRight className="w-4 h-4" />
+                        </>
                       )}
                     </button>
                   </form>
@@ -264,19 +303,24 @@ export default function LoginPage() {
               {/* Tab OTP */}
               <TabsContent value="otp">
                 <Form {...formOtp}>
-                  <form onSubmit={formOtp.handleSubmit(onVerifyOtp)} className="space-y-4">
+                  <form
+                    onSubmit={formOtp.handleSubmit(onVerifyOtp)}
+                    className="space-y-4"
+                  >
                     <FormField
                       control={formOtp.control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">Email</FormLabel>
+                          <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">
+                            Email
+                          </FormLabel>
                           <FormControl>
                             <div className="relative">
                               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                               <Input
                                 placeholder="email@contoh.com"
-                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 pl-10 focus:border-[#F5A623]/50 rounded-xl h-12 disabled:opacity-50"
+                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 pl-10 focus:border-[#F5A623]/50 rounded-xl h-12 [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_1000px_#1A1A1A_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:white]"
                                 disabled={otpSent}
                                 {...field}
                               />
@@ -293,7 +337,9 @@ export default function LoginPage() {
                         name="otp"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">Kode OTP</FormLabel>
+                            <FormLabel className="text-white/60 text-xs font-semibold uppercase tracking-wider">
+                              Kode OTP
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="text"
@@ -304,7 +350,9 @@ export default function LoginPage() {
                               />
                             </FormControl>
                             <FormMessage className="text-red-400 text-xs" />
-                            <p className="text-white/30 text-xs text-center">Kode berlaku 5 menit</p>
+                            <p className="text-white/30 text-xs text-center">
+                              Kode berlaku 5 menit
+                            </p>
                           </FormItem>
                         )}
                       />
@@ -320,7 +368,9 @@ export default function LoginPage() {
                         {isLoading ? (
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
-                          <>Kirim Kode OTP <Mail className="w-4 h-4" /></>
+                          <>
+                            Kirim Kode OTP <Mail className="w-4 h-4" />
+                          </>
                         )}
                       </button>
                     ) : (
@@ -333,7 +383,10 @@ export default function LoginPage() {
                           {isLoading ? (
                             <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                           ) : (
-                            <>Verifikasi & Masuk <ArrowRight className="w-4 h-4" /></>
+                            <>
+                              Verifikasi & Masuk{' '}
+                              <ArrowRight className="w-4 h-4" />
+                            </>
                           )}
                         </button>
                         <button
