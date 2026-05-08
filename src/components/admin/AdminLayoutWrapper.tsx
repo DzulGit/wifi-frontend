@@ -21,7 +21,7 @@ export default function AdminLayoutWrapper({ children, title, subtitle }: AdminL
   const [ticketCount, setTicketCount] = useState(0)
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push('/login'); return }
+    if (!isAuthenticated) { router.push('/admin/login'); return }
     if (!isAdmin) { router.push('/dashboard'); return }
 
     // Fetch badge counts
