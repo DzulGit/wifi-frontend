@@ -24,8 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+// Tambahkan import icon dari lucide-react untuk UI Success
+import {
+  CheckCircle2,
+  MapPin,
+  Wrench,
+  MailCheck,
+  ArrowRight,
+} from 'lucide-react';
 
-// 1. Skema Validasi Zod (Sesuai ERD Terbaru)
 const formSchema = z.object({
   fullName: z.string().min(3, { message: 'Nama lengkap minimal 3 karakter' }),
   email: z.string().email({ message: 'Format email tidak valid' }),
@@ -44,6 +51,8 @@ const formSchema = z.object({
 export default function FormSection() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [packages, setPackages] = useState<any[]>([]);
+  // State baru untuk mengontrol tampilan sukses
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,16 +70,13 @@ export default function FormSection() {
 
   const { setValue } = form;
 
-  // Fetch data paket untuk opsi dropdown
   useEffect(() => {
-    // 1. Fetch data paket
     const fetchPackages = async () => {
       try {
         const { data } = await api.get('/packages');
         const pkgs = Array.isArray(data) ? data : data?.data || [];
         setPackages(pkgs);
 
-        // 2. CEK LOCAL STORAGE SAAT PERTAMA LOAD (Jika user refresh web)
         const savedPkgId = localStorage.getItem('selectedPackageId');
         if (savedPkgId && pkgs.some((p: any) => p.id === savedPkgId)) {
           setValue('packageId', savedPkgId, { shouldValidate: true });
@@ -82,7 +88,6 @@ export default function FormSection() {
 
     fetchPackages();
 
-    // 3. EVENT LISTENER: Cek secara real-time saat tombol di Pricing diklik
     const handlePackageSelection = () => {
       const selectedId = localStorage.getItem('selectedPackageId');
       if (selectedId) {
@@ -94,13 +99,10 @@ export default function FormSection() {
     };
 
     window.addEventListener('packageSelected', handlePackageSelection);
-
-    return () => {
+    return () =>
       window.removeEventListener('packageSelected', handlePackageSelection);
-    };
   }, [setValue]);
 
-  // 2. Integrasi Backend (Payload sudah disesuaikan dengan schema database)
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
@@ -116,17 +118,20 @@ export default function FormSection() {
         notes: values.notes,
       });
 
-      toast.success('Pendaftaran Berhasil Terkirim!', {
-        description:
-          'Tim CAKRANA akan segera menghubungi Anda via WhatsApp untuk proses survei.',
+      // Jika berhasil, ubah state ini jadi true (Form akan hilang, UI Success muncul)
+      setIsSuccess(true);
+      toast.success('Berhasil!', {
+        description: 'Data Anda telah masuk ke sistem kami.',
       });
 
+      // Bersihkan local storage pilihan paket
+      localStorage.removeItem('selectedPackageId');
       form.reset();
     } catch (error: any) {
       toast.error('Pendaftaran Gagal', {
         description:
           error.response?.data?.message ||
-          'Terjadi kesalahan pada sistem, silakan coba beberapa saat lagi.',
+          'Terjadi kesalahan pada sistem, silakan coba lagi.',
       });
       console.error(error);
     } finally {
@@ -135,216 +140,298 @@ export default function FormSection() {
   }
 
   return (
-    <section id="daftar" className="py-24 bg-[#1A1A1A] text-white relative">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-[#1f1f1f] border border-white/10 p-8 md:p-14 rounded-[2rem] shadow-2xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-space-grotesk font-bold text-[#F5A623] mb-4">
-              Mulai Berlangganan
-            </h2>
-            <p className="text-gray-400 text-lg max-w-xl mx-auto">
-              Isi data diri Anda di bawah ini. Tim teknisi kami akan melakukan
-              survei lokasi secepatnya.
-            </p>
-          </div>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <FormField
-                control={form.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-gray-300 font-medium ml-1">
-                      Nama Lengkap
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Sesuai KTP (Contoh: Budi Santoso)"
-                        className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className="text-red-400 ml-1" />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-300 font-medium ml-1">
-                        Alamat Email
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="budi@email.com"
-                          className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400 ml-1" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-300 font-medium ml-1">
-                        Nomor WhatsApp
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="tel"
-                          placeholder="081234567890"
-                          className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400 ml-1" />
-                    </FormItem>
-                  )}
-                />
+    <section
+      id="daftar"
+      className="py-24 bg-[#1A1A1A] text-white relative scroll-mt-20"
+    >
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-[#1f1f1f] border border-white/10 p-8 md:p-14 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+          {/* JIKA BERHASIL DAFTAR (TAMPILAN SUCCESS) */}
+          {isSuccess ? (
+            <div className="text-center py-10 animate-in fade-in zoom-in duration-500">
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-green-500/10 rounded-full mb-8 border border-green-500/20">
+                <CheckCircle2 className="w-12 h-12 text-green-500" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <FormField
-                  control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-300 font-medium ml-1">
-                        Kota/Kabupaten
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Contoh: Depok"
-                          className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400 ml-1" />
-                    </FormItem>
-                  )}
-                />
+              <h2 className="text-3xl md:text-4xl font-space-grotesk font-bold text-white mb-4">
+                Pendaftaran Berhasil Diterima!
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-12">
+                Terima kasih telah memilih CAKRANA. Data Anda sudah masuk ke
+                sistem kami. Mohon tunggu, tim kami akan segera memprosesnya.
+              </p>
 
-                <FormField
-                  control={form.control}
-                  name="district"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-300 font-medium ml-1">
-                        Kecamatan
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Contoh: Beji"
-                          className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400 ml-1" />
-                    </FormItem>
-                  )}
-                />
+              {/* Grid Langkah Selanjutnya */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto text-left mb-12">
+                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-white/5 relative">
+                  <div className="absolute top-6 right-6 text-white/10 text-5xl font-black">
+                    1
+                  </div>
+                  <MapPin className="w-8 h-8 text-[#F5A623] mb-4" />
+                  <h3 className="font-bold text-lg mb-2 text-white">
+                    Survei Lokasi
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Teknisi kami akan menghubungi Anda via WhatsApp untuk
+                    melakukan survei jaringan ke lokasi rumah Anda.
+                  </p>
+                </div>
+
+                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-white/5 relative">
+                  <div className="absolute top-6 right-6 text-white/10 text-5xl font-black">
+                    2
+                  </div>
+                  <Wrench className="w-8 h-8 text-[#F5A623] mb-4" />
+                  <h3 className="font-bold text-lg mb-2 text-white">
+                    Instalasi Perangkat
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Jika lokasi terjangkau jaringan, kami akan langsung
+                    melakukan penarikan kabel dan pemasangan router WiFi.
+                  </p>
+                </div>
+
+                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-white/5 relative">
+                  <div className="absolute top-6 right-6 text-white/10 text-5xl font-black">
+                    3
+                  </div>
+                  <MailCheck className="w-8 h-8 text-[#F5A623] mb-4" />
+                  <h3 className="font-bold text-lg mb-2 text-white">
+                    Aktivasi Akun
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Setelah aktif, Anda akan menerima email untuk login ke
+                    Portal Pelanggan guna memantau tagihan dan layanan.
+                  </p>
+                </div>
               </div>
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-gray-300 font-medium ml-1">
-                      Alamat Detail (Jalan, RT/RW, No. Rumah)
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Contoh: Jl. Margonda Raya No. 12, RT 01/RW 02..."
-                        className="w-full rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 py-4 text-lg resize-none min-h-[100px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className="text-red-400 ml-1" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="packageId"
-                render={({ field }) => (
-                  <FormItem className="w-full">
-                    <FormLabel className="text-gray-300 font-medium ml-1">
-                      Pilih Paket Internet
-                    </FormLabel>
-
-                    {/* PERHATIKAN BARIS DI BAWAH INI: Tambahkan value={field.value} */}
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white focus:ring-[#F5A623] px-5 text-lg">
-                          <SelectValue placeholder="-- Klik untuk memilih paket --" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-[#1f1f1f] border-white/10 text-white rounded-xl">
-                        {packages.map((pkg) => (
-                          <SelectItem
-                            key={pkg.id}
-                            value={pkg.id}
-                            className="focus:bg-[#F5A623] focus:text-white py-3 text-base cursor-pointer"
-                          >
-                            {pkg.name} — {pkg.speedDown} Mbps (Rp{' '}
-                            {pkg.price.toLocaleString('id-ID')})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage className="text-red-400 ml-1" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-gray-300 font-medium ml-1">
-                      Catatan Tambahan / Patokan (Opsional)
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Contoh: Rumah cat hijau, pagar hitam di depan masjid..."
-                        className="w-full rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 py-4 text-base resize-none min-h-[80px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className="text-red-400 ml-1" />
-                  </FormItem>
-                )}
-              />
 
               <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-[#F5A623] hover:bg-[#d98f1b] text-white font-bold py-7 text-xl rounded-xl mt-6 transition-all shadow-[0_0_20px_rgba(245,166,35,0.3)] hover:shadow-[0_0_30px_rgba(245,166,35,0.5)]"
+                onClick={() => setIsSuccess(false)}
+                className="bg-transparent border-2 border-[#F5A623] text-[#F5A623] hover:bg-[#F5A623] hover:text-[#1A1A1A] px-8 py-6 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(245,166,35,0.1)] hover:shadow-[0_0_25px_rgba(245,166,35,0.3)]"
               >
-                {isSubmitting
-                  ? 'Mengirim Data...'
-                  : 'Kirim Formulir Pendaftaran'}
+                Tutup & Kembali ke Beranda
               </Button>
-            </form>
-          </Form>
+            </div>
+          ) : (
+            /* JIKA BELUM DAFTAR (TAMPILAN FORM NORMAL) */
+            <div className="animate-in fade-in duration-500">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-space-grotesk font-bold text-[#F5A623] mb-4">
+                  Mulai Berlangganan
+                </h2>
+                <p className="text-gray-400 text-lg max-w-xl mx-auto">
+                  Isi data diri Anda di bawah ini. Tim teknisi kami akan
+                  melakukan survei lokasi secepatnya.
+                </p>
+              </div>
+
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-8"
+                >
+                  {/* ... SELURUH INPUT FORM SAMA SEPERTI SEBELUMNYA ... */}
+                  <FormField
+                    control={form.control}
+                    name="fullName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-300 font-medium ml-1">
+                          Nama Lengkap
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Sesuai KTP (Contoh: Budi Santoso)"
+                            className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-400 ml-1" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-300 font-medium ml-1">
+                            Alamat Email
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="budi@email.com"
+                              className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-red-400 ml-1" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-300 font-medium ml-1">
+                            Nomor WhatsApp
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="tel"
+                              placeholder="081234567890"
+                              className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-red-400 ml-1" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-300 font-medium ml-1">
+                            Kota/Kabupaten
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Contoh: Depok"
+                              className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-red-400 ml-1" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="district"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-300 font-medium ml-1">
+                            Kecamatan
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Contoh: Beji"
+                              className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 text-lg"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-red-400 ml-1" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-300 font-medium ml-1">
+                          Alamat Detail (Jalan, RT/RW, No. Rumah)
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Contoh: Jl. Margonda Raya No. 12, RT 01/RW 02..."
+                            className="w-full rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 py-4 text-lg resize-none min-h-[100px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-400 ml-1" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="packageId"
+                    render={({ field }) => (
+                      <FormItem className="w-full">
+                        <FormLabel className="text-gray-300 font-medium ml-1">
+                          Pilih Paket Internet
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full h-14 rounded-xl bg-[#1A1A1A] border-white/10 text-white focus:ring-[#F5A623] px-5 text-lg">
+                              <SelectValue placeholder="-- Klik untuk memilih paket --" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-[#1f1f1f] border-white/10 text-white rounded-xl">
+                            {packages.map((pkg) => (
+                              <SelectItem
+                                key={pkg.id}
+                                value={pkg.id}
+                                className="focus:bg-[#F5A623] focus:text-white py-3 text-base cursor-pointer"
+                              >
+                                {pkg.name} — {pkg.speedDown} Mbps (Rp{' '}
+                                {pkg.price.toLocaleString('id-ID')})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="text-red-400 ml-1" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-300 font-medium ml-1">
+                          Catatan Tambahan / Patokan (Opsional)
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Contoh: Rumah cat hijau, pagar hitam di depan masjid..."
+                            className="w-full rounded-xl bg-[#1A1A1A] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#F5A623] px-5 py-4 text-base resize-none min-h-[80px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-400 ml-1" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-7 text-xl rounded-xl mt-6 transition-all shadow-[0_0_20px_rgba(245,166,35,0.3)] hover:shadow-[0_0_30px_rgba(245,166,35,0.5)] flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        Kirim Formulir Pendaftaran{' '}
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Form>
+            </div>
+          )}
         </div>
       </div>
     </section>
