@@ -41,7 +41,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'cakrana-auth',
-      onRehydrateStorage: () => (state) => {  // ← TAMBAH INI
+      onRehydrateStorage: () => (state) => { 
         state?.setHasHydrated(true)
       },
     }

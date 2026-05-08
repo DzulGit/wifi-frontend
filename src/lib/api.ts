@@ -24,9 +24,11 @@ api.interceptors.response.use(
       // Gunakan fungsi logout dari Zustand untuk membersihkan storage
       useAuthStore.getState().logout() 
       
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      // Ganti baris 30 di api.ts
+    if (typeof window !== 'undefined') {
+      const isAdminPath = window.location.pathname.startsWith('/admin');
+      window.location.href = isAdminPath ? '/admin/login' : '/login';
+    }
     }
     return Promise.reject(error)
   }
