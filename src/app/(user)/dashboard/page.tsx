@@ -49,10 +49,10 @@ export default function UserDashboardPage() {
     };
 
     // Hanya panggil API jika user sudah ter-load
-    if (user) {
+    if (user?.id) {
       fetchActiveInvoice();
     }
-  }, [user]);
+  }, [user?.id]);
 
   if (!mounted) return null;
 
