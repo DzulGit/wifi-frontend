@@ -35,14 +35,15 @@ export default function UserLayoutWrapper({
     router.push('/login');
   };
 
-  const { isAuthenticated, isAdmin } = useAuthStore();
+  const { isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
-      if (!isAuthenticated) { router.push('/login'); return }
-      if (isAdmin) { router.push('/admin/dashboard'); return }
-    }, [isAuthenticated, isAdmin, router])
+  if (!_hasHydrated) return
+  if (!isAuthenticated) { router.push('/login'); return }
+  if (isAdmin) { router.push('/admin/dashboard'); return }
+}, [isAuthenticated, isAdmin, _hasHydrated, router])
 
-  if (!isAuthenticated || isAdmin) return null
+  if (!_hasHydrated || !isAuthenticated || isAdmin) return null
 
   const menuItems = [
     { name: 'Beranda', icon: Home, path: '/dashboard' },
