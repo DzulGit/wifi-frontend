@@ -238,7 +238,7 @@ export default function PaketPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await api.get('/packages')
+      const { data } = await api.get('/packages?active=false')
       setPackages(Array.isArray(data) ? data : data.data ?? [])
     } catch { toast.error('Gagal memuat data paket') }
     finally { setLoading(false) }
