@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://wifi-backend-978253671723.asia-southeast2.run.app'
 
 export const ROUTES = {
   // Public

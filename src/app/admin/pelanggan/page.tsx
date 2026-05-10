@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
+import { exportPelanggan } from '@/lib/export'
 import {
   Search, RefreshCw, Eye, MoreVertical, UserPlus,
   Download, Phone, MapPin, Package, CheckCircle,
@@ -378,6 +379,23 @@ export default function PelangganPage() {
     } catch { setSelectedUser(user) }
   }
 
+  const [exporting, setExporting] = useState(false)
+
+// Handler — fetch semua data tanpa pagination dulu
+  const handleExport = async () => {
+  setExporting(true)
+  try {
+    const { data } = await api.get('/users?limit=1000&page=1')
+    await exportPelanggan(data.data)
+    toast.success('Export berhasil!', { description: `${data.data.length} pelanggan diekspor` })
+  } catch {
+    toast.error('Gagal export data')
+  } finally {
+    setExporting(false)
+  }
+}
+
+
   return (
     <AdminLayoutWrapper title="Manajemen Pelanggan" subtitle="Kelola seluruh data pelanggan WiFi">
       <div className="space-y-5">
@@ -424,8 +442,16 @@ export default function PelangganPage() {
             <button onClick={fetchData} className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
               <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button className="flex items-center gap-2 px-4 h-10 rounded-xl border border-green-200 text-green-600 text-sm font-semibold hover:bg-green-50 transition-colors">
-              <Download className="w-4 h-4" /> Export Excel
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-2 px-4 h-10 rounded-xl border border-green-200 text-green-600 text-sm font-semibold hover:bg-green-50 disabled:opacity-50 transition-colors"
+            >
+              {exporting
+                ? <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                : <Download className="w-4 h-4" />
+              }
+              {exporting ? 'Mengekspor...' : 'Export Excel'}
             </button>
             <button
               onClick={() => setShowAddForm(true)}

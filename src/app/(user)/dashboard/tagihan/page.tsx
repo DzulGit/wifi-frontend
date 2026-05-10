@@ -9,6 +9,7 @@ import {
   Upload,
   ArrowRight,
   FileText,
+  Info
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
@@ -21,12 +22,10 @@ export default function UserTagihanPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State untuk Upload File
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pindahkan fetchInvoices ke luar useEffect agar bisa dipanggil ulang setelah bayar
   const fetchInvoices = async () => {
     if (!user?.id) return;
 
@@ -38,11 +37,11 @@ export default function UserTagihanPage() {
 
       const allInvoices = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
 
-      // Pisahkan tagihan secara logis
-      const unpaid = allInvoices.find((inv: any) => inv.status === 'UNPAID');
+      // FIX LOGIKA: Gabungkan UNPAID dan PENDING sebagai tagihan aktif
+      const active = allInvoices.find((inv: any) => ['UNPAID', 'PENDING'].includes(inv.status));
       const paid = allInvoices.filter((inv: any) => inv.status === 'PAID');
 
-      setActiveInvoice(unpaid || null);
+      setActiveInvoice(active || null);
       setInvoiceHistory(paid);
     } catch (error) {
       console.error('Gagal memuat tagihan:', error);
@@ -64,7 +63,6 @@ export default function UserTagihanPage() {
     return months[monthNumber - 1] || '-';
   };
 
-  // Fungsi saat user memilih file gambar
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -77,21 +75,16 @@ export default function UserTagihanPage() {
     }
   };
 
-  // Fungsi Kirim ke API Payments
   const handleUploadPayment = async () => {
-    if (!file) {
-      toast.error("Bukti transfer wajib diunggah");
-      return;
-    }
+    if (!file) return toast.error("Bukti transfer wajib diunggah");
 
     try {
       setIsLoading(true);
-      
       const formData = new FormData();
       formData.append('paymentProof', file);
       formData.append('invoiceId', selectedInvoice.id);
       formData.append('amount', (selectedInvoice.totalAmount || selectedInvoice.amount).toString());
-      formData.append('method', 'TRANSFER_BCA'); // Sesuaikan dengan opsi bank kalian jika ada
+      formData.append('method', 'BANK_TRANSFER'); // Disesuaikan dengan enum Prisma yang baru
       formData.append('userId', user?.id || '');
 
       await api.post('/payments', formData, {
@@ -102,16 +95,12 @@ export default function UserTagihanPage() {
         description: "Admin akan melakukan verifikasi pembayaran Anda secepatnya."
       });
 
-      // Tutup modal dan reset form file
       setSelectedInvoice(null);
       setFile(null);
       setPreviewUrl(null);
-      
-      // Tarik ulang data tagihan dari server agar statusnya update
       fetchInvoices();
       
     } catch (error: any) {
-      console.error("Gagal upload pembayaran:", error);
       toast.error("Gagal mengirim bukti", {
         description: error.response?.data?.message || "Terjadi kesalahan pada server."
       });
@@ -120,14 +109,18 @@ export default function UserTagihanPage() {
     }
   };
 
+  // Mencari apakah ada payment yang ditolak pada invoice aktif
+  const rejectedPayment = activeInvoice?.payments?.find((p: any) => p.status === 'REJECTED');
+
   return (
     <UserLayoutWrapper title="Tagihan & Pembayaran">
       <div className="max-w-5xl mx-auto space-y-8">
         
-        {/* --- SECTION 1: TAGIHAN AKTIF (BELUM DIBAYAR) --- */}
+        {/* --- SECTION 1: TAGIHAN AKTIF --- */}
         <div>
           <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-[#F5A623]" /> Menunggu Pembayaran
+            <AlertCircle className="w-5 h-5 text-[#F5A623]" /> 
+            {activeInvoice?.status === 'PENDING' ? 'Menunggu Verifikasi Admin' : 'Menunggu Pembayaran'}
           </h2>
 
           {isLoading ? (
@@ -135,40 +128,65 @@ export default function UserTagihanPage() {
               <div className="w-8 h-8 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : activeInvoice ? (
-            <div className="bg-gradient-to-r from-[#1A1A1A] to-[#2a2a2a] border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden shadow-2xl shadow-black/50">
+            <div className="bg-gradient-to-r from-[#1A1A1A] to-[#2a2a2a] border border-white/10 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl shadow-black/50">
               <div className="absolute -right-20 -top-20 w-64 h-64 bg-[#F5A623]/10 rounded-full blur-3xl pointer-events-none"></div>
 
-              <div className="relative z-10 w-full md:w-auto">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
-                    Belum Lunas
-                  </span>
-                  <span className="text-white/40 text-sm font-mono">
-                    {activeInvoice.invoiceNumber}
-                  </span>
+              {/* FITUR BARU: ALERT JIKA PEMBAYARAN DITOLAK */}
+              {activeInvoice.status === 'UNPAID' && rejectedPayment && (
+                <div className="relative z-10 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-6 text-sm animate-in fade-in slide-in-from-top-2">
+                  <strong className="block mb-1 text-red-500 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" /> Pembayaran Sebelumnya Ditolak
+                  </strong>
+                  <p>Alasan: <span className="text-white/80">{rejectedPayment.notes || 'Tidak ada catatan'}</span></p>
+                  <p className="mt-2 text-xs opacity-80 text-white/50">Silakan unggah ulang bukti transfer yang benar.</p>
                 </div>
-                <h3 className="text-white font-bold text-2xl mb-1">
-                  Tagihan {getMonthName(activeInvoice.billingMonth)} {activeInvoice.billingYear}
-                </h3>
-                <p className="text-white/50 text-sm flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" /> Jatuh tempo:{' '}
-                  <span className="text-white font-semibold">
-                    {new Date(activeInvoice.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </span>
-                </p>
-              </div>
+              )}
 
-              <div className="relative z-10 flex flex-col items-start md:items-end w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t border-white/5 md:border-none">
-                <p className="text-white/50 text-sm mb-1">Total Pembayaran</p>
-                <p className="text-4xl font-black text-[#F5A623] mb-4 tracking-tight">
-                  Rp {(activeInvoice.totalAmount || activeInvoice.amount)?.toLocaleString('id-ID')}
-                </p>
-                <button
-                  onClick={() => setSelectedInvoice(activeInvoice)}
-                  className="w-full md:w-auto bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(245,166,35,0.3)]"
-                >
-                  Bayar Sekarang <ArrowRight className="w-4 h-4" />
-                </button>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+                <div className="w-full md:w-auto">
+                  <div className="flex items-center gap-3 mb-2">
+                    {activeInvoice.status === 'PENDING' ? (
+                      <span className="bg-[#F5A623]/10 text-[#F5A623] border border-[#F5A623]/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
+                        Sedang Diverifikasi
+                      </span>
+                    ) : (
+                      <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
+                        Belum Lunas
+                      </span>
+                    )}
+                    <span className="text-white/40 text-sm font-mono">{activeInvoice.invoiceNumber}</span>
+                  </div>
+                  <h3 className="text-white font-bold text-2xl mb-1">
+                    Tagihan {getMonthName(activeInvoice.billingMonth)} {activeInvoice.billingYear}
+                  </h3>
+                  <p className="text-white/50 text-sm flex items-center gap-1.5">
+                    <Clock className="w-4 h-4" /> Jatuh tempo:{' '}
+                    <span className="text-white font-semibold">
+                      {new Date(activeInvoice.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-start md:items-end w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t border-white/5 md:border-none">
+                  <p className="text-white/50 text-sm mb-1">Total Pembayaran</p>
+                  <p className="text-4xl font-black text-[#F5A623] mb-4 tracking-tight">
+                    Rp {(activeInvoice.totalAmount || activeInvoice.amount)?.toLocaleString('id-ID')}
+                  </p>
+                  
+                  {/* FITUR BARU: TOMBOL BERUBAH JIKA PENDING */}
+                  {activeInvoice.status === 'PENDING' ? (
+                     <div className="w-full md:w-auto bg-white/5 border border-white/10 text-white/50 font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
+                       <Info className="w-4 h-4" /> Menunggu Admin
+                     </div>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedInvoice(activeInvoice)}
+                      className="w-full md:w-auto bg-[#F5A623] hover:bg-[#d98f1b] text-black font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(245,166,35,0.3)]"
+                    >
+                      Bayar Sekarang <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -176,17 +194,13 @@ export default function UserTagihanPage() {
               <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle2 className="w-8 h-8 text-green-500" />
               </div>
-              <h3 className="text-white font-bold text-xl mb-1">
-                Semua Tagihan Lunas!
-              </h3>
-              <p className="text-white/50">
-                Terima kasih telah melakukan pembayaran tepat waktu.
-              </p>
+              <h3 className="text-white font-bold text-xl mb-1">Semua Tagihan Lunas!</h3>
+              <p className="text-white/50">Terima kasih telah melakukan pembayaran tepat waktu.</p>
             </div>
           )}
         </div>
 
-        {/* --- SECTION 2: RIWAYAT TAGIHAN --- */}
+        {/* --- SECTION 2: RIWAYAT TAGIHAN (Sama seperti sebelumnya) --- */}
         <div>
           <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
             <FileText className="w-5 h-5 text-white/50" /> Riwayat Pembayaran
@@ -207,15 +221,11 @@ export default function UserTagihanPage() {
                 <tbody className="divide-y divide-white/5">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-white/40">
-                        Memuat data...
-                      </td>
+                      <td colSpan={5} className="p-8 text-center text-white/40">Memuat data...</td>
                     </tr>
                   ) : invoiceHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-white/40">
-                        Belum ada riwayat pembayaran.
-                      </td>
+                      <td colSpan={5} className="p-8 text-center text-white/40">Belum ada riwayat pembayaran.</td>
                     </tr>
                   ) : (
                     invoiceHistory.map((inv) => (
@@ -226,11 +236,7 @@ export default function UserTagihanPage() {
                           Rp {(inv.totalAmount || inv.amount).toLocaleString('id-ID')}
                         </td>
                         <td className="p-4 text-sm text-white/60">
-                          {inv.paidAt
-                            ? new Date(inv.paidAt).toLocaleDateString('id-ID', {
-                                day: 'numeric', month: 'short', year: 'numeric',
-                              })
-                            : '-'}
+                          {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                         </td>
                         <td className="p-4">
                           <span className="inline-flex items-center gap-1 bg-green-500/10 text-green-500 border border-green-500/20 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase">
@@ -247,14 +253,12 @@ export default function UserTagihanPage() {
         </div>
       </div>
 
-      {/* --- MODAL BAYAR (SEKARANG DENGAN FUNGSI UPLOAD) --- */}
+      {/* --- MODAL BAYAR (Sama seperti sebelumnya) --- */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1f1f1f] border border-white/10 rounded-3xl p-6 md:p-8 w-full max-w-md relative animate-in zoom-in-95 duration-200">
             <h3 className="text-xl font-bold text-white mb-2">Konfirmasi Pembayaran</h3>
-            <p className="text-white/50 text-sm mb-6">
-              Transfer sesuai nominal ke rekening BCA dan unggah bukti transfer.
-            </p>
+            <p className="text-white/50 text-sm mb-6">Transfer sesuai nominal ke rekening BCA dan unggah bukti transfer.</p>
 
             <div className="bg-black/30 border border-white/5 rounded-2xl p-4 mb-6">
               <p className="text-white/40 text-xs uppercase mb-1 text-center">Nominal yang harus dibayar:</p>
@@ -263,16 +267,8 @@ export default function UserTagihanPage() {
               </p>
             </div>
 
-            {/* Input File Tersembunyi */}
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept="image/*" 
-              className="hidden" 
-            />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
-            {/* Area Drop/Click Upload */}
             <div 
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer mb-6 group ${

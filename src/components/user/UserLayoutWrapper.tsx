@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -27,13 +27,39 @@ export default function UserLayoutWrapper({
   const pathname = usePathname();
   const router = useRouter();
 
-  const logout = useAuthStore((state: any) => state.logout);
-  const user = useAuthStore((state: any) => state.user);
+  // Ambil state & actions langsung dari store
+  const { 
+    user, 
+    logout, 
+    isAuthenticated, 
+    isAdmin, 
+    _hasHydrated 
+  } = useAuthStore();
 
   const handleLogout = () => {
-    if (logout) logout();
+    logout();
     router.push('/login');
   };
+
+  // Guard Logic: Mencegah redirect sebelum data localStorage sinkron
+  useEffect(() => {
+    if (!_hasHydrated) return;
+
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    if (isAdmin) {
+      router.push('/admin/dashboard');
+      return;
+    }
+  }, [_hasHydrated, isAuthenticated, isAdmin, router]);
+
+  // Cegah render jika data belum siap untuk menghindari error "fullName of null"
+  if (!_hasHydrated || !isAuthenticated || isAdmin || !user) {
+    return null;
+  }
 
   const menuItems = [
     { name: 'Beranda', icon: Home, path: '/dashboard' },
