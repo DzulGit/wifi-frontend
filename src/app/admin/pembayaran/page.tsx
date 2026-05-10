@@ -106,38 +106,32 @@ function DetailModal({
           </div>
 
           {/* Proof image */}
-          {payment.proofImageUrl ? (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Bukti Pembayaran</p>
-              {showProof ? (
-                <div className="relative">
-                  <img
-                    src={payment.proofImageUrl}
-                    alt="Bukti pembayaran"
-                    className="w-full rounded-xl border border-gray-200 object-contain max-h-64"
-                  />
-                  <button
-                    onClick={() => setShowProof(false)}
-                    className="absolute top-2 right-2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center"
-                  >
-                    <X className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowProof(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-[#F5A623]/40 text-[#F5A623] text-sm font-semibold hover:bg-[#F5A623]/5 transition-colors"
-                >
-                  <ImageIcon className="w-4 h-4" /> Lihat Bukti Transfer
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl border border-orange-100">
-              <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-              <p className="text-xs text-orange-700">Tidak ada bukti pembayaran yang dilampirkan</p>
-            </div>
-          )}
+          {/* Bukti Pembayaran */}
+{payment.proofImageUrl ? (
+  <div>
+    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+      Bukti Pembayaran
+    </p>
+    <div className="relative group">
+      <img
+        src={payment.proofImageUrl}
+        alt="Bukti pembayaran"
+        className="w-full rounded-xl border border-gray-200 object-cover max-h-64 cursor-pointer"
+        onClick={() => window.open(payment.proofImageUrl!, '_blank')}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-all flex items-center justify-center">
+        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold bg-black/50 px-3 py-1.5 rounded-full transition-all">
+          Klik untuk perbesar
+        </span>
+      </div>
+    </div>
+  </div>
+) : (
+  <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center">
+    <p className="text-gray-400 text-sm">Tidak ada bukti pembayaran</p>
+    <p className="text-gray-300 text-xs mt-1">User belum upload bukti transfer</p>
+  </div>
+)}
 
           {payment.notes && (
             <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
