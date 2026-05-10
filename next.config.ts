@@ -1,52 +1,66 @@
 import type { NextConfig } from 'next'
 
-// ── ZAP Findings Fix: Security Headers via next.config ────────────────────────
-// Next.js menambahkan header ini pada setiap response HTTP dari server
+// ── Security Headers ───────────────────────────────────────────────────────────
 const securityHeaders = [
-  // ZAP Finding: Content Security Policy (CSP) Header Not Set
+  // Content Security Policy (CSP)
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // Next.js memerlukan 'unsafe-inline' dan 'unsafe-eval' untuk dev mode;
-      // di production Turbopack menghasilkan inline scripts yang perlu nonce — untuk
-      // simplisitas kita gunakan strict-dynamic dengan hash, atau izinkan self
+
+      // Next.js dev mode kadang butuh unsafe-inline
       "script-src 'self' 'unsafe-inline'",
+
       "style-src 'self' 'unsafe-inline'",
-      // Izinkan gambar dari GCS (bukti pembayaran) dan data URI (preview)
+
+      // Allow API backend + Cloudflare speed test
+      [
+        "connect-src 'self'",
+        process.env.NEXT_PUBLIC_API_URL ??
+          'https://wifi-backend-978253671723.asia-southeast2.run.app',
+        'https://speed.cloudflare.com',
+        'https://aim.cloudflare.com',
+      ].join(' '),
+
+      // Allow images from GCS + data/blob preview
       "img-src 'self' https://storage.googleapis.com data: blob:",
-      // Izinkan koneksi ke backend API
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL ?? 'https://wifi-backend-978253671723.asia-southeast2.run.app'}`,
+
       // Google Fonts
       "font-src 'self' https://fonts.gstatic.com",
+
+      // Security hardening
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-      // ZAP Finding: Missing Anti-clickjacking Header (CSP layer)
       "frame-ancestors 'none'",
     ].join('; '),
   },
-  // ZAP Finding: Missing Anti-clickjacking Header (HTTP layer)
+
+  // Anti Clickjacking
   {
     key: 'X-Frame-Options',
     value: 'DENY',
   },
-  // ZAP Finding: X-Content-Type-Options Header Missing
+
+  // MIME sniffing protection
   {
     key: 'X-Content-Type-Options',
     value: 'nosniff',
   },
-  // ZAP Finding: Strict-Transport-Security Header Not Set
+
+  // Force HTTPS
   {
     key: 'Strict-Transport-Security',
     value: 'max-age=31536000; includeSubDomains; preload',
   },
-  // ZAP Finding: Referrer-Policy
+
+  // Referrer policy
   {
     key: 'Referrer-Policy',
     value: 'strict-origin-when-cross-origin',
   },
-  // Permissions Policy — batasi akses ke fitur browser yang tidak dipakai
+
+  // Browser feature permissions
   {
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(self), payment=()',
@@ -54,21 +68,26 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  // ZAP Finding: Server Leaks Information via "X-Powered-By"
+  // Hide X-Powered-By header
   poweredByHeader: false,
 
-  headers: async () => [
-    {
-      // Terapkan ke semua route
-      source: '/(.*)',
-      headers: securityHeaders,
-    },
-  ],
+  // Cloud Run standalone build
+  output: 'standalone',
 
+  // Apply security headers
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders,
+      },
+    ]
+  },
+
+  // External image domains
   images: {
     remotePatterns: [
       {
-        // Izinkan gambar dari Google Cloud Storage (bukti pembayaran)
         protocol: 'https',
         hostname: 'storage.googleapis.com',
         pathname: '/wifi-payments-cakrana/**',
