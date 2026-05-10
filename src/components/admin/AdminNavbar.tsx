@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, Settings, HelpCircle, Search } from 'lucide-react'
+import { Bell, Settings, HelpCircle, Wifi } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
+import { useRouter } from 'next/navigation'
+
 
 interface AdminNavbarProps {
   title: string
   subtitle?: string
 }
+
+      const router = useRouter()
 
 export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
   const { admin } = useAuthStore()
@@ -60,6 +64,33 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
           </div>
         </div>
       </div>
+
+
+      <button
+        onClick={() => router.push('/admin/pengaturan')}
+        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+        title="Pengaturan"
+      >
+        <Settings className="w-4 h-4 text-gray-500" />
+      </button>
+
+      // Help button → buka WhatsApp atau modal bantuan
+      <button
+        onClick={() => window.open('https://wa.me/628xxxxxxxxx', '_blank')}
+        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+        title="Bantuan"
+      >
+        <HelpCircle className="w-4 h-4 text-gray-500" />
+      </button>
+
+      // Logo → ke dashboard
+      <button
+        onClick={() => router.push('/admin/dashboard')}
+        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+        title="Dashboard"
+      >
+        <Wifi className="w-4 h-4 text-gray-500" />
+      </button>
     </header>
   )
 }
