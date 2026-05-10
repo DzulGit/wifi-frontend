@@ -5,6 +5,8 @@ import { useAuthStore } from '@/store/auth.store'
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  // SECURITY FIX: Timeout agar request tidak menggantung selamanya
+  timeout: 30000,
 })
 
 // ── REQUEST INTERCEPTOR: Auto attach token ──────────────────
@@ -47,8 +49,9 @@ api.interceptors.response.use(
         window.location.href = isAdminPath ? '/admin/login' : '/login'
       }
     }
+
     return Promise.reject(error)
-  }
+  },
 )
 
 export default api
