@@ -194,7 +194,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold text-right">Status Akun</p>
-                <p className="text-white/80 font-mono text-sm mt-1 text-right">{user?.isActive ? 'AKTIF' : 'AKTIF'}</p>
+                <p className="text-white/80 font-mono text-sm mt-1 text-right">AKTIF</p>
               </div>
             </div>
           </div>
@@ -267,12 +267,11 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${speedPhase === 'PING' ? 'border-[#F5A623] bg-[#F5A623]/10 animate-pulse' : 'border-white/5 bg-black/30'}`}>
                       <Zap className={`w-4 h-4 mb-1 ${speedPhase === 'PING' ? 'text-[#F5A623]' : 'text-white/40'}`}/>
-                      <span className="text-white font-bold font-mono text-sm">{speedPhase === 'IDLE' ? '--' : liveMetrics.ping}</span>
-                      <span className="text-[8px] text-white/40 uppercase mt-1">Ping</span>
+                      <span className="text-white font-bold font-mono text-sm">{liveMetrics.ping}</span>
                     </div>
                     <div className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${speedPhase === 'DOWNLOAD' ? 'border-green-400 bg-green-400/10 animate-pulse' : 'border-white/5 bg-black/30'}`}>
                       <Download className={`w-4 h-4 mb-1 ${speedPhase === 'DOWNLOAD' ? 'text-green-400' : 'text-white/40'}`}/>
-                      <span className="text-white font-bold font-mono text-sm">{speedPhase === 'IDLE' || speedPhase === 'PING' ? '--' : liveMetrics.download.toFixed(1)}</span>
+                      <span className="text-white font-bold font-mono text-sm">{speedPhase === 'PING' ? '--' : liveMetrics.download.toFixed(1)}</span>
                       <span className="text-[8px] text-white/40 uppercase mt-1">Unduh</span>
                     </div>
                     <div className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${speedPhase === 'UPLOAD' ? 'border-blue-400 bg-blue-400/10 animate-pulse' : 'border-white/5 bg-black/30'}`}>
