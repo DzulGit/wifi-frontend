@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, Settings, HelpCircle, Wifi } from 'lucide-react'
+import { Bell, Settings, HelpCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { useRouter } from 'next/navigation'
-
 
 interface AdminNavbarProps {
   title: string
   subtitle?: string
 }
 
-      const router = useRouter()
-
 export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
   const { admin } = useAuthStore()
+  const router = useRouter() 
   const [time, setTime] = useState('')
 
   useEffect(() => {
@@ -44,16 +42,27 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
           {/* Time */}
           <span className="text-gray-400 text-sm font-mono hidden md:block">{time}</span>
 
-          {/* Action icons */}
+          {/* Notifikasi */}
           <button className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors relative">
-            <Bell className="w-4.5 h-4.5 text-gray-500" />
+            <Bell className="w-4 h-4 text-gray-500" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
           </button>
-          <button className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors">
-            <Settings className="w-4.5 h-4.5 text-gray-500" />
+
+          {/* Settings → /admin/pengaturan */}
+          <button
+            onClick={() => router.push('/admin/pengaturan')}
+            className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+            title="Pengaturan"
+          >
+            <Settings className="w-4 h-4 text-gray-500" />
           </button>
-          <button className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors">
-            <HelpCircle className="w-4.5 h-4.5 text-gray-500" />
+
+          {/* Help → modal bantuan (TODO: tambah state modal) */}
+          <button
+            className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+            title="Bantuan"
+          >
+            <HelpCircle className="w-4 h-4 text-gray-500" />
           </button>
 
           {/* Avatar */}
@@ -64,33 +73,6 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
           </div>
         </div>
       </div>
-
-
-      <button
-        onClick={() => router.push('/admin/pengaturan')}
-        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
-        title="Pengaturan"
-      >
-        <Settings className="w-4 h-4 text-gray-500" />
-      </button>
-
-      // Help button → buka WhatsApp atau modal bantuan
-      <button
-        onClick={() => window.open('https://wa.me/628xxxxxxxxx', '_blank')}
-        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
-        title="Bantuan"
-      >
-        <HelpCircle className="w-4 h-4 text-gray-500" />
-      </button>
-
-      // Logo → ke dashboard
-      <button
-        onClick={() => router.push('/admin/dashboard')}
-        className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
-        title="Dashboard"
-      >
-        <Wifi className="w-4 h-4 text-gray-500" />
-      </button>
     </header>
   )
 }
