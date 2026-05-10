@@ -27,7 +27,12 @@ export default function UserLayoutWrapper({
   const pathname = usePathname();
   const router = useRouter();
 
-  // Ambil state & actions langsung dari store
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const { 
     user, 
     logout, 
@@ -41,23 +46,43 @@ export default function UserLayoutWrapper({
     router.push('/login');
   };
 
-  // Guard Logic: Mencegah redirect sebelum data localStorage sinkron
+  // ── GUARD LOGIC: Mencegah redirect prematur ──
   useEffect(() => {
-    if (!_hasHydrated) return;
+    if (!isMounted || !_hasHydrated) return;
 
-    if (!isAuthenticated) {
+    // Safety Net: Cek manual ke localStorage jika state telat
+    let hasLocalToken = false;
+    const authStorage = localStorage.getItem('cakrana-auth');
+    if (authStorage) {
+      try {
+        const parsed = JSON.parse(authStorage);
+        hasLocalToken = !!parsed?.state?.token;
+      } catch (e) { hasLocalToken = false; }
+    }
+
+    if (!isAuthenticated && !hasLocalToken) {
       router.push('/login');
       return;
     }
 
-    if (isAdmin) {
+    if (isAuthenticated && isAdmin) {
       router.push('/admin/dashboard');
       return;
     }
-  }, [_hasHydrated, isAuthenticated, isAdmin, router]);
+  }, [isMounted, _hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // Cegah render jika data belum siap untuk menghindari error "fullName of null"
-  if (!_hasHydrated || !isAuthenticated || isAdmin || !user) {
+  // ── LOADING STATE ──
+  // Cegah render jika data belum siap, munculkan spinner sejenak saat refresh
+  if (!isMounted || !_hasHydrated || (!isAuthenticated && typeof window !== 'undefined' && localStorage.getItem('cakrana-auth'))) {
+    return (
+      <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#F5A623] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Jika fix tidak login, kosongkan sebelum pindah ke halaman login
+  if (!isAuthenticated) {
     return null;
   }
 

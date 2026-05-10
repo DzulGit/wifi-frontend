@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { User, Admin } from '@/types'
 
 interface AuthState {
@@ -8,12 +8,12 @@ interface AuthState {
   admin: Admin | null
   isAuthenticated: boolean
   isAdmin: boolean
-  _hasHydrated: boolean  // ← TAMBAH INI
+  _hasHydrated: boolean
 
   setToken: (token: string) => void
   setUser: (user: User) => void
   setAdmin: (admin: Admin) => void
-  setHasHydrated: (val: boolean) => void  // ← TAMBAH INI
+  setHasHydrated: (val: boolean) => void
   logout: () => void
 }
 
@@ -25,12 +25,12 @@ export const useAuthStore = create<AuthState>()(
       admin: null,
       isAuthenticated: false,
       isAdmin: false,
-      _hasHydrated: false,  // ← TAMBAH INI
+      _hasHydrated: false,
 
       setToken: (token) => set({ token, isAuthenticated: true }),
       setUser: (user) => set({ user, isAdmin: false }),
       setAdmin: (admin) => set({ admin, isAdmin: true }),
-      setHasHydrated: (val) => set({ _hasHydrated: val }),  // ← TAMBAH INI
+      setHasHydrated: (val) => set({ _hasHydrated: val }),
       logout: () => set({
         token: null,
         user: null,
@@ -41,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'cakrana-auth',
+      storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => { 
         state?.setHasHydrated(true)
       },
