@@ -202,7 +202,7 @@ function DetailModal({
             {payment.proofImageUrl ? (
               <div className="relative group cursor-pointer" onClick={() => window.open(payment.proofImageUrl!, '_blank')}>
                 <img
-                  src={payment.proofImageUrl}
+                  src={`${process.env.NEXT_PUBLIC_API_URL}${payment.proofImageUrl}`}
                   alt="Bukti pembayaran"
                   className="w-full rounded-xl border border-gray-200 object-cover max-h-64"
                   onError={(e) => {
