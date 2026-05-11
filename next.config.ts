@@ -17,7 +17,7 @@ const securityHeaders = [
       [
         "connect-src 'self'",
         process.env.NEXT_PUBLIC_API_URL ??
-          'https://wifi-backend-978253671723.asia-southeast2.run.app',
+        'https://wifi-backend-978253671723.asia-southeast2.run.app',
         'https://speed.cloudflare.com',
         'https://aim.cloudflare.com',
       ].join(' '),
