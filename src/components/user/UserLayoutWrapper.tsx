@@ -175,9 +175,12 @@ export default function UserLayoutWrapper({
           </div>
 
           <div className="flex items-center gap-5">
-            <button className="relative p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+            <button 
+              onClick={() => router.push('/dashboard/notifikasi')}
+              className="relative p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#1A1A1A]"></span>
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#1A1A1A] animate-pulse"></span>
             </button>
             <div className="h-8 w-px bg-white/10"></div>
             <div className="flex items-center gap-3">
