@@ -50,7 +50,7 @@ export default function UserLayoutWrapper({
     
     const fetchUnread = async () => {
       try {
-        const { data } = await api.get('/notification', { params: { userId: user.id } });
+        const { data } = await api.get('/notifications', { params: { userId: user.id } });
         const notifs = data?.data || data || [];
         // Hitung yang belum dibaca
         const unread = notifs.filter((n: any) => !n.isRead).length;
