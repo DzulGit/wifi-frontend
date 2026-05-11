@@ -34,7 +34,7 @@ export default function DashboardPage() {
         setIsLoading(true);
         const apiCalls = [
           api.get('/notification').catch(() => null),
-          api.get('/billing').catch(() => null),
+          api.get('/billing', { params: { userId: user.id } }).catch(() => null),
           api.get('/tickets', { params: { userId: user.id } }).catch(() => null),
         ];
         if (user.packageId && !user.package?.name) {
