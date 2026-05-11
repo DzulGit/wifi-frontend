@@ -15,6 +15,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
+import api from '@/lib/api';
 
 export default function UserLayoutWrapper({
   children,
@@ -29,10 +30,12 @@ export default function UserLayoutWrapper({
 
   const [isMounted, setIsMounted] = useState(false);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
+  
   const { 
     user, 
     logout, 
@@ -40,6 +43,25 @@ export default function UserLayoutWrapper({
     isAdmin, 
     _hasHydrated 
   } = useAuthStore();
+
+  // ── FETCH UNREAD NOTIFICATIONS ──
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    
+    const fetchUnread = async () => {
+      try {
+        const { data } = await api.get('/notification', { params: { userId: user.id } });
+        const notifs = data?.data || data || [];
+        // Hitung yang belum dibaca
+        const unread = notifs.filter((n: any) => !n.isRead).length;
+        setUnreadCount(unread);
+      } catch (error) {
+        console.error("Gagal get notif header");
+      }
+    };
+
+    fetchUnread();
+  }, [isAuthenticated, user?.id, pathname]); // Akan update setiap kali pindah halaman
 
   const handleLogout = () => {
     logout();
@@ -180,7 +202,12 @@ export default function UserLayoutWrapper({
               className="relative p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 transition-colors"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#1A1A1A] animate-pulse"></span>
+              {/* Ini logika untuk memunculkan ANGKA NOTIFIKASI */}
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-[#1A1A1A] flex items-center justify-center animate-in zoom-in">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
             <div className="h-8 w-px bg-white/10"></div>
             <div className="flex items-center gap-3">
