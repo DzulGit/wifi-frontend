@@ -33,7 +33,7 @@ export default function UserLayoutWrapper({
     
     const fetchUnread = async () => {
       try {
-        const { data } = await api.get('/notifications', { params: { userId: user.id } });
+        const { data } = await api.get('/notifications');
         const notifs = data?.data || data || [];
         const unread = notifs.filter((n: any) => !n.isRead).length;
         setUnreadCount(unread);

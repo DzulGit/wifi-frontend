@@ -25,10 +25,8 @@ export default function NotifikasiPage() {
     try {
       setIsLoading(true);
       // Memanggil endpoint notifikasi (sesuai yang ada di Dashboard)
-      const { data } = await api.get('/notifications', {
-        params: { userId: user.id },
-      });
-
+      const { data } = await api.get('/notifications');
+      
       const notifs = data?.data || data || [];
       // Mengurutkan dari yang terbaru (jika backend belum mengurutkan)
       const sortedNotifs = Array.isArray(notifs)
