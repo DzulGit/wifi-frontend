@@ -10,7 +10,12 @@ interface HeaderProps {
   setIsSidebarOpen: (isOpen: boolean) => void;
 }
 
-export default function Header({ title, user, unreadCount, setIsSidebarOpen }: HeaderProps) {
+export default function Header({
+  title,
+  user,
+  unreadCount,
+  setIsSidebarOpen,
+}: HeaderProps) {
   const router = useRouter();
 
   return (
@@ -29,7 +34,7 @@ export default function Header({ title, user, unreadCount, setIsSidebarOpen }: H
 
       <div className="flex items-center gap-5">
         {/* Tombol Lonceng Notifikasi */}
-        <button 
+        <button
           onClick={() => router.push('/dashboard/notifikasi')}
           className="relative p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 transition-colors"
         >
@@ -40,9 +45,9 @@ export default function Header({ title, user, unreadCount, setIsSidebarOpen }: H
             </span>
           )}
         </button>
-        
+
         <div className="h-8 w-px bg-white/10"></div>
-        
+
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-bold text-white">
@@ -52,9 +57,19 @@ export default function Header({ title, user, unreadCount, setIsSidebarOpen }: H
               {user?.customerCode || 'ID: -'}
             </p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-[#F5A623] flex items-center justify-center text-black font-bold text-lg shadow-lg shadow-[#F5A623]/20">
-            {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-          </div>
+          {user?.profilePhoto ? (
+            <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
+              <img
+                src={user.profilePhoto}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-[#F5A623] flex items-center justify-center text-black font-bold text-lg shadow-lg shadow-[#F5A623]/20">
+              {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -9,6 +9,7 @@ interface AuthState {
   isAuthenticated: boolean
   isAdmin: boolean
   _hasHydrated: boolean
+  profilePhoto?: string | null
 
   setToken: (token: string) => void
   setUser: (user: User) => void
