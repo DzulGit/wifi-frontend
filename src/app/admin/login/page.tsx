@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { setAuthCookie } from '@/lib/auth-cookie'
 import { useAuthStore } from '@/store/auth.store'
 import { Input } from '@/components/ui/input'
 import {
@@ -65,8 +66,14 @@ export default function AdminLoginPage() {
     try {
       setIsLoading(true)
       const { data } = await api.post('/auth/admin/login', values)
+      
+      // Set auth cookie for middleware authentication
+      setAuthCookie(data.token)
+      
+      // Store in Zustand for client-side state management
       setToken(data.token)
       setAdmin(data.admin)
+      
       toast.success(`Selamat datang, ${data.admin.fullName}`, {
         description: `Login sebagai ${data.admin.role}`
       })

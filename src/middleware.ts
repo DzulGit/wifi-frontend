@@ -1,26 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // ── Next.js Middleware — Server-side Route Guard ─────────────────────────────
-// SECURITY FIX: Perlindungan tambahan di level server agar route admin & user
-// tidak bisa diakses tanpa token, meski client-side guard di-bypass.
+// SECURITY FIX (MED-6): Enforce authentication at middleware level for protected
+// routes to prevent brief rendering of protected pages before client-side redirects.
 //
-// CATATAN: Middleware ini hanya memeriksa keberadaan token di cookie/localStorage
-// mirror. Validasi sebenarnya tetap di backend (JWT verify). Ini adalah defense
-// in depth layer, bukan satu-satunya perlindungan.
+// This middleware:
+// 1. Checks for auth token in cookies (set during login)
+// 2. Validates access to protected routes (/dashboard, /admin)
+// 3. Redirects unauthenticated users to /login immediately
+// 4. Sets cache-control headers for protected resources
+//
+// CATATAN: Token validation (JWT verification) happens at backend. This is a
+// defense-in-depth layer preventing unauthorized access at the routing level.
+
+// Protected routes that require authentication
+const PROTECTED_ROUTES = ['/dashboard', '/admin']
+const AUTH_COOKIE_NAME = 'authToken'
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Ambil token dari cookie (jika ada) — fallback ke header Authorization
-  // Zustand persist menggunakan localStorage, bukan cookie, sehingga middleware
-  // tidak bisa membaca token secara langsung. Solusinya: set cookie saat login.
-  // Untuk saat ini, middleware menerapkan cache-control header saja.
+  // Extract auth token from cookie (set during login)
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value
+
+  // Check if current path is protected
+  const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
+    pathname.startsWith(route),
+  )
+
+  // If accessing protected route without token, redirect to login
+  if (isProtectedRoute && !token) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
   const response = NextResponse.next()
 
   // ZAP Finding: Re-examine Cache-control Directives
   // Halaman dashboard user & admin tidak boleh di-cache oleh browser/CDN
-  if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
+  if (isProtectedRoute) {
     response.headers.set(
       'Cache-Control',
       'no-store, no-cache, must-revalidate, proxy-revalidate',

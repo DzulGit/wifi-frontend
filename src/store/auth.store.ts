@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { clearAuthCookie } from '@/lib/auth-cookie'
 import { User, Admin } from '@/types'
 
 interface AuthState {
@@ -31,13 +32,19 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user, isAdmin: false }),
       setAdmin: (admin) => set({ admin, isAdmin: true }),
       setHasHydrated: (val) => set({ _hasHydrated: val }),
-      logout: () => set({
-        token: null,
-        user: null,
-        admin: null,
-        isAuthenticated: false,
-        isAdmin: false,
-      }),
+      logout: () => {
+        // Clear auth cookie for middleware authentication
+        clearAuthCookie()
+        
+        // Clear auth state
+        set({
+          token: null,
+          user: null,
+          admin: null,
+          isAuthenticated: false,
+          isAdmin: false,
+        })
+      },
     }),
     {
       name: 'cakrana-auth',

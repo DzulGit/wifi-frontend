@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { setAuthCookie } from '@/lib/auth-cookie';
 import { useAuthStore } from '@/store/auth.store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,8 +115,14 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       const { data } = await api.post('/auth/login', values);
+      
+      // Set auth cookie for middleware authentication
+      setAuthCookie(data.token);
+      
+      // Store in Zustand for client-side state management
       setToken(data.token);
       setUser(data.user);
+      
       toast.success('Login berhasil!', {
         description: `Selamat datang, ${data.user.fullName}`,
       });
@@ -168,8 +175,14 @@ export default function LoginPage() {
         email: values.email,
         code: values.otp,
       });
+      
+      // Set auth cookie for middleware authentication
+      setAuthCookie(data.token);
+      
+      // Store in Zustand for client-side state management
       setToken(data.token);
       setUser(data.user);
+      
       toast.success('Login berhasil!', {
         description: 'Verifikasi OTP sukses.',
       });
