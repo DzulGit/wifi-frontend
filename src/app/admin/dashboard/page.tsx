@@ -39,14 +39,27 @@ const timeAgo = (date: string) => {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des']
-const currentMonth = new Date().getMonth()
 
-// Generate dummy monthly data (nanti bisa diganti dengan API laporan)
-const monthlyData = MONTHS.slice(0, currentMonth + 1).map((month, i) => ({
-  month,
-  pendapatan: Math.floor(Math.random() * 30000000) + 10000000,
-  isCurrent: i === currentMonth,
-}))
+// ── Fetch chart data from backend (placeholder for now) ────
+const fetchChartData = async () => {
+  try {
+    // TODO: Replace with actual API endpoint when backend analytics is ready
+    // Example: const response = await api.get('/analytics/monthly-revenue')
+    // return response.data
+
+    // Placeholder: Generate data structure matching expected format
+    const currentMonth = new Date().getMonth()
+    return MONTHS.slice(0, currentMonth + 1).map((month, i) => ({
+      month,
+      pendapatan: Math.floor(Math.random() * 30000000) + 10000000,
+      isCurrent: i === currentMonth,
+    }))
+  } catch (err) {
+    console.error('Failed to fetch chart data:', err)
+    // Fallback to empty data
+    return []
+  }
+}
 
 // ── Subcomponents ─────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, color, sub, badge }: {
@@ -108,7 +121,8 @@ export default function AdminDashboardPage() {
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([])
   const [pendingRegs, setPendingRegs] = useState<PendingReg[]>([])
   const [pendingPayments, setPendingPayments] = useState<PendingPayment[]>([])
-  const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([])
+  const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>([])  
+  const [chartData, setChartData] = useState<Array<{ month: string; pendapatan: number; isCurrent: boolean }>>([])  
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -116,16 +130,16 @@ export default function AdminDashboardPage() {
       try {
         const [userStats, billingStats, paymentStats, ticketStats, regStats,
           usersRes, regsRes, paymentsRes, ticketsRes] = await Promise.all([
-          api.get('/users/stats'),
-          api.get('/billing/stats'),
-          api.get('/payments/stats'),
-          api.get('/tickets/stats'),
-          api.get('/registrations/stats'),
-          api.get('/users?limit=5&page=1'),
-          api.get('/registrations?status=PENDING&limit=3'),
-          api.get('/payments?status=PENDING&limit=3'),
-          api.get('/tickets?status=OPEN&limit=3'),
-        ])
+            api.get('/users/stats'),
+            api.get('/billing/stats'),
+            api.get('/payments/stats'),
+            api.get('/tickets/stats'),
+            api.get('/registrations/stats'),
+            api.get('/users?limit=5&page=1'),
+            api.get('/registrations?status=PENDING&limit=3'),
+            api.get('/payments?status=PENDING&limit=3'),
+            api.get('/tickets?status=OPEN&limit=3'),
+          ])
 
         setStats({
           userStats: userStats.data,
@@ -138,6 +152,10 @@ export default function AdminDashboardPage() {
         setPendingRegs(regsRes.data.data ?? [])
         setPendingPayments(paymentsRes.data.data ?? [])
         setActiveTickets(ticketsRes.data.data ?? [])
+
+        // Fetch chart data
+        const data = await fetchChartData()
+        setChartData(data)
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err)
       } finally {
@@ -187,19 +205,19 @@ export default function AdminDashboardPage() {
   }
 
   if (loading || !stats) {
-  return (
-    <AdminLayoutWrapper title="Dasbor Overview">
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Memuat data dashboard...</p>
+    return (
+      <AdminLayoutWrapper title="Dasbor Overview">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">Memuat data dashboard...</p>
+          </div>
         </div>
-      </div>
-    </AdminLayoutWrapper>
-  )
-}
+      </AdminLayoutWrapper>
+    )
+  }
 
-const s = stats  
+  const s = stats
 
   return (
     <AdminLayoutWrapper title="Dasbor Overview">
@@ -295,7 +313,7 @@ const s = stats
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="font-semibold text-gray-900">Pendapatan Bulanan 2026</h3>
+                <h3 className="font-semibold text-gray-900">Pendapatan Bulanan {new Date().getFullYear()}</h3>
                 <p className="text-xs text-gray-400 mt-0.5">Estimasi berdasarkan tagihan lunas</p>
               </div>
               <div className="flex items-center gap-1.5">
@@ -304,7 +322,7 @@ const s = stats
               </div>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyData} barSize={28}>
+              <BarChart data={chartData} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} />
@@ -313,7 +331,7 @@ const s = stats
                   contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
                 />
                 <Bar dataKey="pendapatan" radius={[6, 6, 0, 0]}>
-                  {monthlyData.map((entry, i) => (
+                  {chartData.map((entry, i) => (
                     <Cell key={i} fill={entry.isCurrent ? '#F5A623' : '#f0f0f0'} />
                   ))}
                 </Bar>
