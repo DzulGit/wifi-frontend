@@ -17,6 +17,7 @@ export interface User {
   activatedAt: string | null
   createdAt: string
   updatedAt: string
+  profilePhoto: string | null
 }
 
 // ── Admin ─────────────────────────────────────────────────────

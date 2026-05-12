@@ -2,18 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import UserLayoutWrapper from '@/components/user/UserLayoutWrapper';
-import {
-  Lock,
-  Eye,
-  EyeOff,
-  Save,
-  ShieldCheck,
-  User,
-  Mail,
-  Phone,
-  Hash,
-  Camera,
-} from 'lucide-react';
+import { Lock, Eye, EyeOff, Save, ShieldCheck, User, Mail, Phone, Hash, Camera, } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth.store';
@@ -40,9 +29,7 @@ export default function UserPengaturanPage() {
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
 
   // Isi form profil dengan data user saat komponen dimuat
-  useEffect(() => {
-    if (user) {
-      setFullName(user.fullName || '');
+  useEffect(() => { if (user) { setFullName(user.fullName || '');
       setPhone(user.phone || '');
       setProfilePhoto(user.profilePhoto || null);
     }
