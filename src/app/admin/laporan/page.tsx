@@ -5,6 +5,7 @@ import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import { exportLaporanBulanan } from '@/lib/export'
 import { RefreshCw, TrendingUp, Users, CreditCard, FileText, Download } from 'lucide-react'
+import NotificationBell from '@/components/admin/NotificationBell'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
@@ -135,6 +136,7 @@ export default function LaporanPage() {
             <button onClick={fetchData} className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
               <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
             </button>
+            <NotificationBell />
           </div>
 
           {/* Export section */}

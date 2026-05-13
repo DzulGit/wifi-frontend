@@ -10,7 +10,7 @@ interface AuthState {
   isAuthenticated: boolean
   isAdmin: boolean
   _hasHydrated: boolean
-
+  
   setToken: (token: string) => void
   setUser: (user: User) => void
   setAdmin: (admin: Admin) => void
