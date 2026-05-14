@@ -1,164 +1,276 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { useAuthStore } from '@/store/auth.store'
-import {
-  LayoutDashboard,
-  UserPlus,
-  Users,
-  Package,
-  Receipt,
-  CreditCard,
-  Ticket,
-  BarChart3,
-  Settings,
-  LogOut,
-  Wifi,
-  ChevronRight,
-} from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { X, Bell, MessageSquare, CreditCard, Users, FileText, CheckCircle, RefreshCw, Activity } from 'lucide-react'
+import api from '@/lib/api'
+import { useRouter } from 'next/navigation'
 
-const navItems = [
-  {
-    label: 'MENU UTAMA',
-    items: [
-      { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dasbor' },
-      { href: '/admin/pendaftar', icon: UserPlus, label: 'Pendaftar Baru', badge: 'pending' },
-      { href: '/admin/pelanggan', icon: Users, label: 'Manajemen Pelanggan' },
-      { href: '/admin/paket', icon: Package, label: 'Manajemen Paket' },
-    ]
-  },
-  {
-    label: 'BILLING',
-    items: [
-      { href: '/admin/tagihan', icon: Receipt, label: 'Tagihan' },
-      { href: '/admin/pembayaran', icon: CreditCard, label: 'Pembayaran', badge: 'payment' },
-    ]
-  },
-  {
-    label: 'SUPPORT',
-    items: [
-      { href: '/admin/tiket', icon: Ticket, label: 'Tiket Dukungan', badge: 'ticket' },
-    ]
-  },
-  {
-    label: 'LAPORAN',
-    items: [
-      { href: '/admin/laporan', icon: BarChart3, label: 'Analitik' },
-      { href: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
-    ]
-  },
-]
+// ── Types (Sesuai Skema Prisma Baru) ───────────────────────────
+type NotifCategory = 'FINANCE' | 'SUPPORT' | 'SYSTEM' | 'ACCOUNT' | 'BILLING'
 
-interface SidebarProps {
-  pendingCount?: number
-  paymentCount?: number
-  ticketCount?: number
+interface AdminNotification {
+  id: string
+  title: string
+  message: string
+  category: NotifCategory
+  link?: string
+  isUrgent: boolean
+  isRead: boolean
+  metadata?: Record<string, any>
+  createdAt: string
 }
 
-export default function AdminSidebar({ pendingCount = 0, paymentCount = 0, ticketCount = 0 }: SidebarProps) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { admin, logout } = useAuthStore()
-  const [loggingOut, setLoggingOut] = useState(false)
+const timeAgo = (date: string) => {
+  const diff = Date.now() - new Date(date).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Baru saja'
+  if (mins < 60) return `${mins} mnt lalu`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} jam lalu`
+  return `${Math.floor(hours / 24)} hari lalu`
+}
 
-  const getBadgeCount = (badge?: string) => {
-    if (badge === 'pending') return pendingCount
-    if (badge === 'payment') return paymentCount
-    if (badge === 'ticket') return ticketCount
-    return 0
+function NotifIcon({ category, isUrgent }: { category: NotifCategory, isUrgent: boolean }) {
+  if (isUrgent) {
+    return (
+      <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 animate-pulse">
+        <Activity className="w-4 h-4 text-red-600" />
+      </div>
+    )
   }
 
-  const handleLogout = async () => {
-    setLoggingOut(true)
-    logout()
-    router.push('/login')
+  const map = {
+    FINANCE: { icon: CreditCard,    bg: 'bg-[#F5A623]/15', color: 'text-[#F5A623]' },
+    SUPPORT: { icon: MessageSquare, bg: 'bg-blue-100',   color: 'text-blue-600'   },
+    SYSTEM:  { icon: Bell,          bg: 'bg-gray-100',   color: 'text-gray-600'   },
+    ACCOUNT: { icon: Users,         bg: 'bg-green-100',  color: 'text-green-600'  },
+    BILLING: { icon: FileText,      bg: 'bg-purple-100', color: 'text-purple-600' },
   }
+  const { icon: Icon, bg, color } = map[category] ?? map.SYSTEM
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[220px] bg-[#1A1A1A] flex flex-col z-50 border-r border-white/5">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#F5A623] flex items-center justify-center flex-shrink-0">
-            <Wifi className="w-5 h-5 text-black" />
-          </div>
-          <div>
-            <p className="text-white font-bold text-base tracking-wider leading-none">CAKRANA</p>
-            <p className="text-[#F5A623]/70 text-[10px] tracking-widest leading-none mt-1">ISP MANAGEMENT</p>
-          </div>
-        </div>
-      </div>
+    <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
+      <Icon className={`w-4 h-4 ${color}`} />
+    </div>
+  )
+}
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5 scrollbar-none">
-        {navItems.map((group) => (
-          <div key={group.label}>
-            <p className="text-white/30 text-[9px] font-semibold tracking-widest px-2 mb-2">
-              {group.label}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                const badgeCount = getBadgeCount(item.badge)
+// ── Sidebar Component ──────────────────────────────────────────
+interface NotificationSidebarProps {
+  open: boolean
+  onClose: () => void
+  onReadAction: () => void
+  refreshGlobalCount: () => Promise<void>
+}
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`
-                      flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                      transition-all duration-150 group relative
-                      ${isActive
-                        ? 'bg-[#F5A623] text-black'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                      }
-                    `}
-                  >
-                    <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-black' : 'text-white/50 group-hover:text-white'}`} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {badgeCount > 0 && (
-                      <span className={`
-                        text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center
-                        ${isActive ? 'bg-black/20 text-black' : 'bg-red-500 text-white'}
-                      `}>
-                        {badgeCount}
-                      </span>
-                    )}
-                    {isActive && (
-                      <ChevronRight className="w-3 h-3 text-black/60" />
-                    )}
-                  </Link>
-                )
-              })}
+type FilterType = 'ALL' | 'UNREAD' | NotifCategory
+
+export default function NotificationSidebar({ open, onClose, onReadAction, refreshGlobalCount }: NotificationSidebarProps) {
+  const router = useRouter()
+  const [notifs, setNotifs]       = useState<AdminNotification[]>([])
+  const [loading, setLoading]     = useState(false)
+  const [filter, setFilter]       = useState<FilterType>('ALL')
+  const intervalRef               = useRef<NodeJS.Timeout | null>(null)
+
+  // ── Fetch Langsung dari Tabel AdminNotification ──────────────
+  const fetchNotifs = useCallback(async () => {
+    setLoading(true)
+    try {
+      let url = '/admin/notifications?limit=50&page=1'
+      
+      if (filter === 'UNREAD') {
+        url += '&isRead=false'
+      } else if (filter !== 'ALL') {
+        url += `&category=${filter}`
+      }
+
+      const res = await api.get(url)
+      // Tergantung format NestJS lu, biasanya di res.data.data
+      const items = res.data?.data ?? res.data ?? []
+      
+      setNotifs(items)
+    } catch (e) {
+      console.error("Gagal memuat notifikasi", e)
+    } finally {
+      setLoading(false)
+    }
+  }, [filter])
+
+  // Fetch tiap buka sidebar / ganti filter
+  useEffect(() => {
+    if (open) fetchNotifs()
+  }, [open, fetchNotifs])
+
+  // Polling kalau sidebar lagi kebuka
+  useEffect(() => {
+    if (!open) return
+    intervalRef.current = setInterval(fetchNotifs, 30000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [open, fetchNotifs])
+
+  // ── Update DB pas di-klik ──────────────────────────────────
+  const markAsRead = async (id: string, isCurrentlyRead: boolean) => {
+    if (isCurrentlyRead) return // Kalo udah read, ga usah tembak API lagi
+
+    // Optimistic UI update (biar instan di mata user)
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
+    onReadAction() // Ngurangin badge merah di Bell icon
+
+    try {
+      await api.patch(`/admin/notifications/${id}/read`)
+    } catch (err) {
+      console.error("Gagal update status read", err)
+      fetchNotifs() // Revert kalau gagal
+    }
+  }
+
+  const markAllRead = async () => {
+    setNotifs(prev => prev.map(n => ({ ...n, isRead: true })))
+    try {
+      // Ganti URL ini kalau endpoint mark-all lu beda dari yang di-generate AI
+      await api.post('/admin/notifications/read/many') 
+      refreshGlobalCount()
+    } catch (err) {
+      console.error(err)
+      fetchNotifs()
+    }
+  }
+
+  const handleClick = (notif: AdminNotification) => {
+    markAsRead(notif.id, notif.isRead)
+    if (notif.link) {
+      router.push(notif.link)
+      onClose()
+    }
+  }
+
+  // Group by date label
+  const grouped: { label: string; items: AdminNotification[] }[] = []
+  for (const notif of notifs) {
+    const d = new Date(notif.createdAt)
+    const today = new Date()
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+    const label =
+      d.toDateString() === today.toDateString() ? 'Hari ini' :
+      d.toDateString() === yesterday.toDateString() ? 'Kemarin' :
+      d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })
+
+    const group = grouped.find(g => g.label === label)
+    if (group) group.items.push(notif)
+    else grouped.push({ label, items: [notif] })
+  }
+
+  const FILTER_TABS: { value: FilterType, label: string }[] = [
+    { value: 'ALL', label: 'Semua' },
+    { value: 'UNREAD', label: 'Belum Dibaca' },
+    { value: 'FINANCE', label: 'Keuangan' },
+    { value: 'SUPPORT', label: 'Support' },
+    { value: 'BILLING', label: 'Tagihan' },
+    { value: 'SYSTEM', label: 'Sistem' },
+  ]
+
+  return (
+    <>
+      <div className={`fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
+
+      <div className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[450px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}>
+        
+        {/* Header */}
+        <div className="bg-[#1A1A1A] px-5 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#F5A623]/20 flex items-center justify-center">
+                <Bell className="w-4 h-4 text-[#F5A623]" />
+              </div>
+              <h2 className="text-white font-bold text-sm leading-none">Notifikasi Admin</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={fetchNotifs} className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                <RefreshCw className={`w-3.5 h-3.5 text-white/60 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                <X className="w-4 h-4 text-white/60" />
+              </button>
             </div>
           </div>
-        ))}
-      </nav>
 
-      {/* Admin info + logout */}
-      <div className="border-t border-white/10 p-3">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg mb-2">
-          <div className="w-8 h-8 rounded-full bg-[#F5A623] flex items-center justify-center flex-shrink-0">
-            <span className="text-black font-bold text-xs">
-              {admin?.fullName?.charAt(0) ?? 'A'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-semibold truncate">{admin?.fullName ?? 'Admin'}</p>
-            <p className="text-[#F5A623]/70 text-[10px] truncate">{admin?.role ?? 'ADMIN'}</p>
+          {/* Filter tabs (Scrollable horizontal) */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {FILTER_TABS.map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilter(f.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                    filter === f.value ? 'bg-[#F5A623] text-black' : 'bg-white/10 text-white/50 hover:bg-white/20'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={markAllRead}
+              className="flex-shrink-0 text-[11px] text-white/40 hover:text-white/70 transition-colors pl-2 border-l border-white/10"
+            >
+              Tandai semua dibaca
+            </button>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all text-sm font-medium"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Keluar</span>
-        </button>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+          {loading && notifs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-3">
+              <div className="w-8 h-8 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-400 text-sm">Memuat notifikasi...</p>
+            </div>
+          ) : notifs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 px-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-gray-300" />
+              </div>
+              <p className="text-gray-500 font-medium">Tidak ada notifikasi</p>
+            </div>
+          ) : (
+            <div className="pb-4">
+              {grouped.map(({ label, items }) => (
+                <div key={label}>
+                  <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm px-5 py-2 border-b border-gray-100 z-10">
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                  </div>
+                  {items.map(notif => (
+                    <button
+                      key={notif.id}
+                      onClick={() => handleClick(notif)}
+                      className={`w-full text-left px-5 py-4 flex items-start gap-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                        !notif.isRead ? 'bg-blue-50/30' : ''
+                      }`}
+                    >
+                      <NotifIcon category={notif.category} isUrgent={notif.isUrgent} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`text-sm leading-tight ${!notif.isRead ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                            {notif.title}
+                          </p>
+                          {!notif.isRead && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{notif.message}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <p className="text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</p>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            {notif.category}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </aside>
+    </>
   )
 }

@@ -10,27 +10,29 @@ export default function NotificationBell() {
   const [unread, setUnread]     = useState(0)
   const intervalRef             = useRef<NodeJS.Timeout | null>(null)
 
-  // Quick count poll (lighter than full fetch)
+  // Polling super ringan: Cuma ngambil angka total yang belum dibaca
   const pollCount = useCallback(async () => {
     try {
-      const [paymentsRes, regsRes, ticketsRes] = await Promise.allSettled([
-        api.get('/payments?status=PENDING&limit=1&page=1'),
-        api.get('/registrations?status=PENDING&limit=1&page=1'),
-        api.get('/tickets?status=OPEN&limit=1&page=1'),
-      ])
-      let count = 0
-      if (paymentsRes.status === 'fulfilled') count += paymentsRes.value.data?.meta?.total ?? 0
-      if (regsRes.status === 'fulfilled') count += regsRes.value.data?.meta?.total ?? 0
-      if (ticketsRes.status === 'fulfilled') count += ticketsRes.value.data?.meta?.total ?? 0
-      setUnread(count)
-    } catch {}
+      // Kita hitung total notif yang isRead = false
+      const res = await api.get('/admin/notifications?isRead=false&limit=1')
+      // Tergantung format respon NestJS lu, biasanya total ada di meta
+      const total = res.data?.meta?.total ?? res.data?.data?.length ?? 0
+      setUnread(total)
+    } catch (err) {
+      console.error("Gagal fetch unread count", err)
+    }
   }, [])
 
   useEffect(() => {
     pollCount()
-    intervalRef.current = setInterval(pollCount, 30000)
+    intervalRef.current = setInterval(pollCount, 30000) // Cek tiap 30 detik
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [pollCount])
+
+  // Fungsi buat ngurangin badge dari sidebar pas admin ngeklik notif
+  const handleUnreadDecrement = () => {
+    setUnread(prev => Math.max(0, prev - 1))
+  }
 
   return (
     <>
@@ -50,7 +52,8 @@ export default function NotificationBell() {
       <NotificationSidebar
         open={open}
         onClose={() => setOpen(false)}
-        onUnreadChange={setUnread}
+        onReadAction={handleUnreadDecrement}
+        refreshGlobalCount={pollCount}
       />
     </>
   )
