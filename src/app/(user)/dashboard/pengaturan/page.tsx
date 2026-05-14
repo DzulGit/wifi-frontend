@@ -74,9 +74,9 @@ export default function UserPengaturanPage() {
         const formData = new FormData();
         formData.append('file', photoFile);
 
-        // PERHATIAN: Pastikan di backend NestJS kamu ada endpoint POST /upload
+        // PERHATIAN: Pastikan di backend NestJS kamu ada endpoint POST /avatars/profile-photo
         // yang menerima form-data 'file' dan mereturn { url: '...' }
-        const uploadRes = await api.post('/upload/profile-photo', formData, {
+        const uploadRes = await api.post('/avatars/profile-photo', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         finalPhotoUrl = uploadRes.data.url; // Ambil URL dari respons backend
