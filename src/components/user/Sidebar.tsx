@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, CreditCard, LifeBuoy, Bell, Settings, LogOut, X, Wifi } from 'lucide-react';
+import { Home, CreditCard, LifeBuoy, Bell, Settings, LogOut, X, Wifi, Package } from 'lucide-react';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -12,11 +12,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, pathname, unreadCount, handleLogout }: SidebarProps) {
-  // Menu sudah ditambahkan 'Notifikasi' di antara Bantuan dan Pengaturan
   const menuItems = [
     { name: 'Beranda', icon: Home, path: '/dashboard' },
     { name: 'Tagihan Saya', icon: CreditCard, path: '/dashboard/tagihan' },
     { name: 'Bantuan & Laporan', icon: LifeBuoy, path: '/dashboard/bantuan' },
+    // 👇 MENU LAYANAN BARU DITAMBAHKAN DI SINI 👇
+    { name: 'Layanan', icon: Package, path: '/dashboard/layanan' },
     { name: 'Notifikasi', icon: Bell, path: '/dashboard/notifikasi', badge: unreadCount },
     { name: 'Pengaturan Akun', icon: Settings, path: '/dashboard/pengaturan' },
   ];
