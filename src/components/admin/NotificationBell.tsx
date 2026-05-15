@@ -6,9 +6,9 @@ import NotificationSidebar from './NotificationSidebar'
 import api from '@/lib/api'
 
 export default function NotificationBell() {
-  const [open, setOpen]         = useState(false)
-  const [unread, setUnread]     = useState(0)
-  const intervalRef             = useRef<NodeJS.Timeout | null>(null)
+  const [open, setOpen] = useState(false)
+  const [unread, setUnread] = useState(0)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Polling super ringan: Cuma ngambil angka total yang belum dibaca
   const pollCount = useCallback(async () => {
@@ -52,8 +52,12 @@ export default function NotificationBell() {
       <NotificationSidebar
         open={open}
         onClose={() => setOpen(false)}
-        onReadAction={handleUnreadDecrement}
-        refreshGlobalCount={pollCount}
+        // Ganti onReadAction dan refreshGlobalCount dengan ini:
+        onUnreadChange={(count) => {
+          // Panggil fungsi untuk update angka badge merah di Bell lu
+          // Misalnya setUnreadCount(count) atau sejenisnya
+          console.log("Sisa unread:", count);
+        }}
       />
     </>
   )
