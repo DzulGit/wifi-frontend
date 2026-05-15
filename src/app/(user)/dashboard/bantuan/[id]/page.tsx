@@ -23,8 +23,7 @@ export default function DetailBantuanPage() {
     try {
       const { data } = await api.get(`/tickets/${ticketId}`);
       const resData = data.data || data;
-      setTicket(resData);
-      // Backend pakai 'replies'
+        setTicket(resData);
       setMessages(resData.replies || []);
     } catch (e) { router.push('/dashboard/bantuan'); }
     finally { setIsLoading(false); }
@@ -32,8 +31,6 @@ export default function DetailBantuanPage() {
 
   useEffect(() => { if (ticketId) fetchData(); }, [ticketId]);
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-  // Backend pakai isFromAdmin (boolean)
   const lastTwoAreUser = messages.slice(-2).length === 2 && messages.slice(-2).every(m => m.isFromAdmin === false);
   const isBlocked = lastTwoAreUser || ticket?.status === 'CLOSED' || ticket?.status === 'RESOLVED';
 
@@ -42,7 +39,6 @@ export default function DetailBantuanPage() {
     if (!inputText.trim() || isBlocked) return;
     setIsSending(true);
     try {
-      // Pastikan endpoint ini sesuai controller Fikar, biasanya '/tickets/:id/reply' atau '/tickets/:id/messages'
       const { data } = await api.post(`/tickets/${ticketId}/reply`, { 
         message: inputText, 
         isFromAdmin: false 
@@ -55,15 +51,33 @@ export default function DetailBantuanPage() {
 
   if (isLoading) return <UserLayoutWrapper title="Loading..."><div className="text-center py-20 animate-pulse text-[#F5A623]">Memuat Obrolan...</div></UserLayoutWrapper>;
 
+  // Fungsi helper warna teks prioritas
+  const getPriorityTextColor = (prio: string) => {
+    switch (prio) {
+      case 'CRITICAL': return 'text-red-500';
+      case 'HIGH': return 'text-orange-500';
+      case 'LOW': return 'text-gray-400';
+      default: return 'text-blue-400';
+    }
+  };
+
   return (
     <UserLayoutWrapper title="Detail Laporan">
       <div className="max-w-4xl mx-auto h-[80vh] flex flex-col bg-[#1A1A1A] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
         <div className="p-6 bg-[#1f1f1f] border-b border-white/5 flex justify-between items-center">
           <button onClick={() => router.push('/dashboard/bantuan')} className="text-white/50 hover:text-white flex items-center gap-2 text-sm"><ArrowLeft size={16} /> Kembali</button>
           <div className="text-right">
-            {/* Backend pakai 'title' */}
             <h2 className="text-white font-bold">{ticket?.title}</h2>
-            <span className="text-[10px] text-[#F5A623] font-bold uppercase">{ticket?.status?.replace('_', ' ')}</span>
+            <div className="flex justify-end gap-2 items-center mt-1">
+              {/* Badge Prioritas */}
+              {ticket?.priority && (
+                <span className={`text-[9px] font-bold uppercase tracking-widest ${getPriorityTextColor(ticket.priority)}`}>
+                  [{ticket.priority}]
+                </span>
+              )}
+              {/* Status Tiket */}
+              <span className="text-[10px] text-[#F5A623] font-bold uppercase">{ticket?.status?.replace('_', ' ')}</span>
+            </div>
           </div>
         </div>
 
@@ -71,7 +85,6 @@ export default function DetailBantuanPage() {
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.isFromAdmin === false ? 'justify-end' : 'justify-start'}`}>
               <div className={`p-3 rounded-2xl max-w-[70%] text-sm ${m.isFromAdmin === false ? 'bg-[#F5A623] text-black font-medium' : 'bg-[#2a2a2a] text-white border border-white/10'}`}>
-                {/* Backend pakai 'message' */}
                 {m.message}
               </div>
             </div>
