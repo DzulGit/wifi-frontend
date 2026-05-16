@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   X, Bell, CreditCard, UserPlus, Ticket, AlertTriangle,
   CheckCircle, RefreshCw, ClipboardList, Package,
-  MapPin, XOctagon, Zap, Info, ChevronRight, BellOff
+  MapPin, XOctagon, Zap, Info, ChevronRight, BellOff, CheckCheck,
 } from 'lucide-react'
 import api from '@/lib/api'
 
@@ -18,7 +18,7 @@ interface AdminNotif {
   link: string | null
   isUrgent: boolean
   isRead: boolean
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   createdAt: string
 }
 
@@ -59,11 +59,9 @@ const groupByDate = (notifs: AdminNotif[]): GroupedNotifs[] => {
   return Object.entries(groups).map(([label, items]) => ({ label, items }))
 }
 
-// ── Icon + color resolver berdasarkan category + title ─────────
 const getNotifStyle = (notif: AdminNotif) => {
   const t = notif.title
 
-  // SYSTEM — request user
   if (t.includes('Ganti Paket'))
     return { icon: Package, bg: 'bg-blue-100', color: 'text-blue-600', dot: 'bg-blue-500' }
   if (t.includes('Pindah Alamat'))
@@ -73,7 +71,6 @@ const getNotifStyle = (notif: AdminNotif) => {
   if (t.includes('Permintaan'))
     return { icon: ClipboardList, bg: 'bg-purple-100', color: 'text-purple-600', dot: 'bg-purple-500' }
 
-  // FINANCE
   if (notif.category === 'FINANCE') {
     if (t.includes('Masuk') || t.includes('Pending'))
       return { icon: CreditCard, bg: 'bg-amber-100', color: 'text-amber-600', dot: 'bg-amber-500' }
@@ -82,72 +79,48 @@ const getNotifStyle = (notif: AdminNotif) => {
     return { icon: CreditCard, bg: 'bg-blue-100', color: 'text-blue-600', dot: 'bg-blue-500' }
   }
 
-  // SUPPORT (ticket)
   if (notif.category === 'SUPPORT')
     return { icon: Ticket, bg: 'bg-purple-100', color: 'text-purple-600', dot: 'bg-purple-500' }
 
-  // BILLING
   if (notif.category === 'BILLING') {
     if (t.includes('Terlambat') || t.includes('Overdue'))
       return { icon: AlertTriangle, bg: 'bg-red-100', color: 'text-red-500', dot: 'bg-red-500' }
     return { icon: Zap, bg: 'bg-amber-100', color: 'text-amber-600', dot: 'bg-amber-500' }
   }
 
-  // ACCOUNT
   if (notif.category === 'ACCOUNT')
     return { icon: UserPlus, bg: 'bg-green-100', color: 'text-green-600', dot: 'bg-green-500' }
 
-  // default
   return { icon: Info, bg: 'bg-gray-100', color: 'text-gray-500', dot: 'bg-gray-400' }
 }
 
-// ── Resolve link yang benar ────────────────────────────────────
-// Backend mengirim link dengan ID path. Kita pastikan route dynamic sudah terbentuk dengan benar.
-// Struktur: /admin/(authenticated)/[resource]/[id]
-const resolveLink = (notif: AdminNotif): string | null => {
-  const raw = notif.link
-  const meta = notif.metadata ?? {}
+/** Arahkan ke halaman list (tanpa ID) berdasarkan kategori / path notifikasi */
+export const resolveListRoute = (notif: AdminNotif): string | null => {
+  const raw = (notif.link ?? '').toLowerCase()
+  const title = notif.title.toLowerCase()
 
-  // Kalau tidak ada link sama sekali
-  if (!raw) {
-    // Fallback berdasarkan category
-    if (notif.category === 'FINANCE') return '/admin/pembayaran'
-    if (notif.category === 'SUPPORT') return '/admin/tiket'
-    if (notif.category === 'BILLING') return '/admin/tagihan'
-    if (notif.category === 'ACCOUNT') return '/admin/pelanggan'
-    if (notif.category === 'SYSTEM') return '/admin/permintaan'
-    return null
-  }
+  if (raw.includes('/pembayaran') || title.includes('pembayaran') || notif.category === 'FINANCE')
+    return '/admin/pembayaran'
+  if (raw.includes('/tagihan') || title.includes('tagihan') || notif.category === 'BILLING')
+    return '/admin/tagihan'
+  if (raw.includes('/tiket') || title.includes('tiket') || notif.category === 'SUPPORT')
+    return '/admin/tiket'
+  if (raw.includes('/pendaftar') || title.includes('pendaftar') || title.includes('pendaftaran'))
+    return '/admin/pendaftar'
+  if (raw.includes('/pelanggan') || title.includes('pelanggan'))
+    return '/admin/pelanggan'
+  if (raw.includes('/permintaan') || notif.category === 'SYSTEM')
+    return '/admin/permintaan'
+  if (raw.includes('/paket'))
+    return '/admin/paket'
+  if (raw.includes('/laporan'))
+    return '/admin/laporan'
 
-  // Match dynamic routes dengan ID:
-  // Format: /admin/[resource]/[id] -> valid sekarang karena sudah dibuat [id] routes
-  
-  // Tiket — /admin/tiket/[id] sudah valid ✓
-  if (raw.match(/^\/admin\/tiket\/[a-zA-Z0-9_-]+$/)) return raw
+  if (notif.category === 'ACCOUNT') return '/admin/pendaftar'
 
-  // Pembayaran — /admin/pembayaran/[id] sudah valid ✓
-  if (raw.match(/^\/admin\/pembayaran\/[a-zA-Z0-9_-]+$/)) return raw
-
-  // Tagihan — /admin/tagihan/[id] sudah valid ✓
-  if (raw.match(/^\/admin\/tagihan\/[a-zA-Z0-9_-]+$/)) return raw
-
-  // Pelanggan — arahkan ke list (detail inline)
-  if (raw.match(/^\/admin\/pelanggan\/.+/)) return '/admin/pelanggan'
-
-  // Pendaftar — arahkan ke list (detail inline)
-  if (raw.match(/^\/admin\/pendaftar\/.+/)) return '/admin/pendaftar'
-
-  // Permintaan — arahkan ke halaman permintaan
-  if (raw === '/admin/permintaan' || raw.includes('permintaan')) return '/admin/permintaan'
-
-  // Link yang sudah valid (/admin/xxx tanpa ID path)
-  if (raw.match(/^\/admin\/[a-z]+$/)) return raw
-
-  // Fallback: kembalikan raw jika format tidak dikenal
-  return raw || null
+  return null
 }
 
-// ── Filter tabs ────────────────────────────────────────────────
 type FilterTab = 'all' | 'unread' | 'FINANCE' | 'SUPPORT' | 'SYSTEM' | 'BILLING' | 'ACCOUNT'
 
 const TABS: { key: FilterTab; label: string }[] = [
@@ -159,7 +132,6 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: 'BILLING', label: 'Tagihan' },
 ]
 
-// ── Komponen Item Notifikasi ───────────────────────────────────
 function NotifItem({
   notif,
   onClick,
@@ -169,27 +141,25 @@ function NotifItem({
 }) {
   const style = getNotifStyle(notif)
   const Icon = style.icon
-  const link = resolveLink(notif)
+  const route = resolveListRoute(notif)
 
   return (
     <button
+      type="button"
       onClick={() => onClick(notif)}
-      className={`w-full text-left px-4 py-3.5 flex items-start gap-3 transition-all hover:bg-gray-50 group relative ${
-        !notif.isRead ? 'bg-blue-50/40' : ''
-      } ${!link ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`w-full text-left px-4 py-3.5 flex items-start gap-3 transition-colors hover:bg-gray-50 group relative border-b border-gray-50 last:border-0 ${
+        !notif.isRead ? 'bg-[#F5A623]/[0.04]' : ''
+      } ${route ? 'cursor-pointer' : 'cursor-default'}`}
     >
-      {/* Unread dot */}
       {!notif.isRead && (
-        <span className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${style.dot} flex-shrink-0`} />
+        <span className={`absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${style.dot}`} />
       )}
 
-      {/* Icon */}
-      <div className={`w-9 h-9 rounded-xl ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-105 transition-transform`}>
+      <div className={`w-10 h-10 rounded-xl ${style.bg} flex items-center justify-center flex-shrink-0`}>
         <Icon className={`w-4 h-4 ${style.color}`} />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 pr-1">
         <div className="flex items-start justify-between gap-2">
           <p className={`text-sm leading-snug ${!notif.isRead ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
             {notif.title}
@@ -203,9 +173,9 @@ function NotifItem({
         <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{notif.message}</p>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
-          {link && (
-            <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${style.color} opacity-0 group-hover:opacity-100 transition-opacity`}>
-              Buka <ChevronRight className="w-2.5 h-2.5" />
+          {route && (
+            <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${style.color}`}>
+              Lihat halaman <ChevronRight className="w-2.5 h-2.5" />
             </span>
           )}
         </div>
@@ -214,7 +184,6 @@ function NotifItem({
   )
 }
 
-// ── Main Sidebar Component ─────────────────────────────────────
 interface NotificationSidebarProps {
   open: boolean
   onClose: () => void
@@ -225,160 +194,182 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
   const router = useRouter()
   const [notifs, setNotifs] = useState<AdminNotif[]>([])
   const [loading, setLoading] = useState(false)
+  const [markingAll, setMarkingAll] = useState(false)
   const [filter, setFilter] = useState<FilterTab>('unread')
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const syncUnread = useCallback(
+    (items: AdminNotif[]) => {
+      onUnreadChange?.(items.filter((n) => !n.isRead).length)
+    },
+    [onUnreadChange]
+  )
 
   const fetchNotifs = useCallback(async () => {
     setLoading(true)
     try {
-      // Ambil langsung dari AdminNotification table — data sudah clean + punya link
       const { data } = await api.get('/admin/notifications?limit=100')
-      const items: AdminNotif[] = data.notifications ?? []
-
-      // Sort terbaru dulu
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
+      const items: AdminNotif[] = (data.notifications ?? []).sort(
+        (a: AdminNotif, b: AdminNotif) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
       setNotifs(items)
-      const unread = items.filter(n => !n.isRead).length
-      onUnreadChange?.(unread)
+      syncUnread(items)
     } catch (e) {
       console.warn('[NotificationSidebar] fetch error:', e)
     } finally {
       setLoading(false)
     }
-  }, [onUnreadChange])
+  }, [syncUnread])
 
-  // Fetch saat sidebar dibuka
   useEffect(() => {
     if (open) fetchNotifs()
   }, [open, fetchNotifs])
 
-  // Polling 30 detik
   useEffect(() => {
     fetchNotifs()
     intervalRef.current = setInterval(fetchNotifs, 30000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
   }, [fetchNotifs])
 
   const markAsRead = async (id: string) => {
     try {
       await api.post(`/admin/notifications/${id}/read`)
-      setNotifs(prev => {
-        const updated = prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-        onUnreadChange?.(updated.filter(n => !n.isRead).length)
+      setNotifs((prev) => {
+        const updated = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        syncUnread(updated)
         return updated
       })
-    } catch { /* silent */ }
-  }
-
-  const markAllRead = async () => {
-    try {
-      await api.post('/admin/notifications/read/all')
-      setNotifs(prev => {
-        const updated = prev.map(n => ({ ...n, isRead: true }))
-        onUnreadChange?.(0)
-        return updated
-      })
-    } catch { /* silent */ }
-  }
-
-  const handleClick = async (notif: AdminNotif) => {
-    // Mark as read dulu (fire and forget)
-    if (!notif.isRead) markAsRead(notif.id)
-
-    const link = resolveLink(notif)
-    if (link) {
-      onClose()
-      router.push(link)
+    } catch {
+      /* silent */
     }
   }
 
-  // Filter displayed
-  const displayed = notifs.filter(n => {
+  const markAllRead = async () => {
+    if (markingAll) return
+    setMarkingAll(true)
+    try {
+      await api.post('/admin/notifications/read/all')
+      setNotifs((prev) => {
+        const updated = prev.map((n) => ({ ...n, isRead: true }))
+        onUnreadChange?.(0)
+        return updated
+      })
+    } catch (e) {
+      console.warn('[NotificationSidebar] mark all read error:', e)
+    } finally {
+      setMarkingAll(false)
+    }
+  }
+
+  const handleClick = async (notif: AdminNotif) => {
+    if (!notif.isRead) await markAsRead(notif.id)
+
+    const route = resolveListRoute(notif)
+    if (route) {
+      onClose()
+      router.push(route)
+    }
+  }
+
+  const displayed = notifs.filter((n) => {
     if (filter === 'unread') return !n.isRead
     if (filter === 'all') return true
     return n.category === filter
   })
 
   const grouped = groupByDate(displayed)
-  const unreadCount = notifs.filter(n => !n.isRead).length
-  const urgentCount = notifs.filter(n => n.isUrgent && !n.isRead).length
+  const unreadCount = notifs.filter((n) => !n.isRead).length
+  const urgentCount = notifs.filter((n) => n.isUrgent && !n.isRead).length
 
-  // Category counts untuk badge tabs
   const countByFilter = (f: FilterTab) => {
     if (f === 'unread') return unreadCount
     if (f === 'all') return notifs.length
-    return notifs.filter(n => n.category === f && !n.isRead).length
+    return notifs.filter((n) => n.category === f && !n.isRead).length
   }
 
   return (
     <>
-      {/* Overlay */}
       <div
-        className={`fixed inset-0 z-40 transition-all duration-300 ${
-          open ? 'bg-black/30 backdrop-blur-[2px] pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
+        aria-hidden={!open}
       />
 
-      {/* Sidebar panel */}
-      <div
-        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+      <aside
+        className={`fixed top-0 right-0 z-[70] h-full w-full max-w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Panel notifikasi"
       >
-        {/* ── Header ─────────────────────────────────── */}
-        <div className="bg-[#1A1A1A] flex-shrink-0">
-          {/* Top bar */}
-          <div className="px-5 pt-5 pb-3 flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-xl bg-[#F5A623]/20 flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-[#F5A623]" />
-                </div>
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-[#1A1A1A] flex items-center justify-center px-1">
-                    <span className="text-white text-[9px] font-bold leading-none">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+        {/* Header */}
+        <div className="flex-shrink-0 bg-[#1A1A1A] border-b border-white/5">
+          <div className="px-5 pt-5 pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#F5A623]/20 flex items-center justify-center">
+                    <Bell className="w-5 h-5 text-[#F5A623]" />
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-[#1A1A1A] flex items-center justify-center px-1">
+                      <span className="text-white text-[9px] font-bold leading-none">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
                     </span>
-                  </span>
-                )}
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-white font-bold text-base leading-tight">Notifikasi</h2>
+                  <p className="text-white/45 text-xs mt-0.5 truncate">
+                    {unreadCount > 0
+                      ? `${unreadCount} belum dibaca${urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}`
+                      : 'Semua sudah dibaca'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-white font-bold text-base leading-none">Notifikasi</h2>
-                <p className="text-white/40 text-xs mt-0.5">
-                  {unreadCount > 0 ? `${unreadCount} belum dibaca` : 'Semua sudah dibaca'}
-                  {urgentCount > 0 && ` · ${urgentCount} urgent`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={fetchNotifs}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-white/60 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-              {unreadCount > 0 && (
+
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button
-                  onClick={markAllRead}
-                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                  title="Tandai semua dibaca"
+                  type="button"
+                  onClick={fetchNotifs}
+                  disabled={loading}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors disabled:opacity-50"
+                  title="Muat ulang"
                 >
-                  <CheckCircle className="w-3.5 h-3.5 text-white/60" />
+                  <RefreshCw className={`w-3.5 h-3.5 text-white/70 ${loading ? 'animate-spin' : ''}`} />
                 </button>
-              )}
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-white/60" />
-              </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                  aria-label="Tutup"
+                >
+                  <X className="w-4 h-4 text-white/70" />
+                </button>
+              </div>
             </div>
+
+            {/* Mark all read — tombol teks di header */}
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                disabled={markingAll}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                <CheckCheck className={`w-3.5 h-3.5 ${markingAll ? 'animate-pulse' : ''}`} />
+                {markingAll ? 'Memproses...' : 'Tandai semua dibaca'}
+              </button>
+            )}
           </div>
 
-          {/* Urgent banner */}
           {urgentCount > 0 && (
             <div className="mx-5 mb-3 bg-red-500/15 border border-red-500/25 rounded-xl px-3 py-2 flex items-center gap-2">
               <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
@@ -388,26 +379,28 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
             </div>
           )}
 
-          {/* Filter tabs — horizontal scroll */}
           <div className="px-4 pb-3 flex gap-1.5 overflow-x-auto scrollbar-none">
-            {TABS.map(tab => {
+            {TABS.map((tab) => {
               const count = countByFilter(tab.key)
               const isActive = filter === tab.key
               return (
                 <button
                   key={tab.key}
+                  type="button"
                   onClick={() => setFilter(tab.key)}
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-[#F5A623] text-black'
-                      : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
+                      : 'bg-white/10 text-white/55 hover:bg-white/20 hover:text-white'
                   }`}
                 >
                   {tab.label}
                   {count > 0 && (
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
-                      isActive ? 'bg-black/20 text-black' : 'bg-red-500 text-white'
-                    }`}>
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                        isActive ? 'bg-black/20 text-black' : 'bg-red-500 text-white'
+                      }`}
+                    >
                       {count > 99 ? '99+' : count}
                     </span>
                   )}
@@ -417,14 +410,13 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
           </div>
         </div>
 
-        {/* ── Content ─────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable list */}
+        <div className="flex-1 overflow-y-auto overscroll-contain bg-white">
           {loading && notifs.length === 0 ? (
-            // Loading skeleton
             <div className="p-4 space-y-3">
-              {[...Array(5)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <div key={i} className="flex gap-3 animate-pulse">
-                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex-shrink-0" />
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 flex-shrink-0" />
                   <div className="flex-1 space-y-2 py-1">
                     <div className="h-3.5 bg-gray-100 rounded-full w-2/3" />
                     <div className="h-3 bg-gray-100 rounded-full w-full" />
@@ -434,13 +426,12 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
               ))}
             </div>
           ) : displayed.length === 0 ? (
-            // Empty state
-            <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4 pb-16">
+            <div className="flex flex-col items-center justify-center min-h-[280px] px-8 text-center gap-4 py-12">
               <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
                 <BellOff className="w-8 h-8 text-gray-300" />
               </div>
               <div>
-                <p className="text-gray-600 font-semibold">
+                <p className="text-gray-700 font-semibold">
                   {filter === 'unread' ? 'Tidak ada notifikasi baru' : 'Tidak ada notifikasi'}
                 </p>
                 <p className="text-gray-400 text-sm mt-1">
@@ -451,6 +442,7 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
               </div>
               {filter === 'unread' && notifs.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => setFilter('all')}
                   className="text-sm text-[#F5A623] font-semibold hover:underline"
                 >
@@ -459,44 +451,28 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
               )}
             </div>
           ) : (
-            // Grouped list
-            <div className="pb-4">
+            <div className="pb-6">
               {grouped.map(({ label, items }) => (
-                <div key={label}>
-                  {/* Date separator */}
-                  <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm px-5 py-2 border-b border-gray-100">
+                <section key={label}>
+                  <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm px-5 py-2 border-y border-gray-100">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
                   </div>
-
-                  {/* Items */}
-                  <div className="divide-y divide-gray-50">
-                    {items.map(notif => (
-                      <NotifItem key={notif.id} notif={notif} onClick={handleClick} />
-                    ))}
-                  </div>
-                </div>
+                  {items.map((notif) => (
+                    <NotifItem key={notif.id} notif={notif} onClick={handleClick} />
+                  ))}
+                </section>
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Footer ─────────────────────────────────── */}
-        <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50/50 px-5 py-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] text-gray-400">
-              {notifs.length} notifikasi · diperbarui setiap 30 detik
-            </p>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-[11px] font-semibold text-[#F5A623] hover:underline"
-              >
-                Tandai semua dibaca
-              </button>
-            )}
-          </div>
+        {/* Footer */}
+        <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50 px-5 py-3">
+          <p className="text-[11px] text-gray-400 text-center">
+            {notifs.length} notifikasi · diperbarui otomatis setiap 30 detik
+          </p>
         </div>
-      </div>
+      </aside>
     </>
   )
 }

@@ -8,35 +8,41 @@ import api from '@/lib/api'
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(0)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Polling super ringan: Cuma ngambil angka total yang belum dibaca
   const pollCount = useCallback(async () => {
     try {
-      // Kita hitung total notif yang isRead = false
-      const res = await api.get('/admin/notifications?isRead=false&limit=1')
-      // Tergantung format respon NestJS lu, biasanya total ada di meta
-      const total = res.data?.meta?.total ?? res.data?.data?.length ?? 0
-      setUnread(total)
+      const res = await api.get('/admin/notifications/summary')
+      const data = res.data
+      if (typeof data.total === 'number') {
+        setUnread(data.total)
+      } else if (typeof data.totalUnread === 'number') {
+        setUnread(data.totalUnread)
+      } else {
+        const fallback =
+          (data.payments ?? 0) +
+          (data.registrations ?? 0) +
+          (data.tickets ?? 0) +
+          (data.invoices ?? 0)
+        setUnread(fallback)
+      }
     } catch (err) {
-      console.error("Gagal fetch unread count", err)
+      console.error('Gagal fetch unread count', err)
     }
   }, [])
 
   useEffect(() => {
     pollCount()
-    intervalRef.current = setInterval(pollCount, 30000) // Cek tiap 30 detik
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    intervalRef.current = setInterval(pollCount, 30000)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
   }, [pollCount])
-
-  // Fungsi buat ngurangin badge dari sidebar pas admin ngeklik notif
-  const handleUnreadDecrement = () => {
-    setUnread(prev => Math.max(0, prev - 1))
-  }
 
   return (
     <>
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="relative w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 hover:shadow-sm transition-all"
         aria-label="Notifikasi"
@@ -51,13 +57,11 @@ export default function NotificationBell() {
 
       <NotificationSidebar
         open={open}
-        onClose={() => setOpen(false)}
-        // Ganti onReadAction dan refreshGlobalCount dengan ini:
-        onUnreadChange={(count) => {
-          // Panggil fungsi untuk update angka badge merah di Bell lu
-          // Misalnya setUnreadCount(count) atau sejenisnya
-          console.log("Sisa unread:", count);
+        onClose={() => {
+          setOpen(false)
+          pollCount()
         }}
+        onUnreadChange={setUnread}
       />
     </>
   )
