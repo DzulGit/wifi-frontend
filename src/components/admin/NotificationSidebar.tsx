@@ -102,8 +102,8 @@ const getNotifStyle = (notif: AdminNotif) => {
 }
 
 // ── Resolve link yang benar ────────────────────────────────────
-// Backend kadang set link ke '/admin/tiket/${id}' yang tidak ada route-nya.
-// Kita normalize ke route yang valid.
+// Backend mengirim link dengan ID path. Kita pastikan route dynamic sudah terbentuk dengan benar.
+// Struktur: /admin/(authenticated)/[resource]/[id]
 const resolveLink = (notif: AdminNotif): string | null => {
   const raw = notif.link
   const meta = notif.metadata ?? {}
@@ -119,31 +119,32 @@ const resolveLink = (notif: AdminNotif): string | null => {
     return null
   }
 
-  // Tiket — route detail tiket tidak ada di frontend (/admin/tiket/:id belum dibuat)
-  // Arahkan ke halaman list tiket
-  if (raw.match(/^\/admin\/tiket\/.+/)) return '/admin/tiket'
+  // Match dynamic routes dengan ID:
+  // Format: /admin/[resource]/[id] -> valid sekarang karena sudah dibuat [id] routes
+  
+  // Tiket — /admin/tiket/[id] sudah valid ✓
+  if (raw.match(/^\/admin\/tiket\/[a-zA-Z0-9_-]+$/)) return raw
 
-  // Pembayaran — sama, detail sudah inline di halaman list
-  if (raw.match(/^\/admin\/pembayaran\/.+/)) return '/admin/pembayaran'
+  // Pembayaran — /admin/pembayaran/[id] sudah valid ✓
+  if (raw.match(/^\/admin\/pembayaran\/[a-zA-Z0-9_-]+$/)) return raw
 
-  // Tagihan — arahkan ke list
-  if (raw.match(/^\/admin\/tagihan\/.+/)) return '/admin/tagihan'
+  // Tagihan — /admin/tagihan/[id] sudah valid ✓
+  if (raw.match(/^\/admin\/tagihan\/[a-zA-Z0-9_-]+$/)) return raw
 
-  // Pelanggan detail — bisa valid kalau ada params ?id=
+  // Pelanggan — arahkan ke list (detail inline)
   if (raw.match(/^\/admin\/pelanggan\/.+/)) return '/admin/pelanggan'
 
-  // Pendaftar detail
+  // Pendaftar — arahkan ke list (detail inline)
   if (raw.match(/^\/admin\/pendaftar\/.+/)) return '/admin/pendaftar'
 
-  // Permintaan
+  // Permintaan — arahkan ke halaman permintaan
   if (raw === '/admin/permintaan' || raw.includes('permintaan')) return '/admin/permintaan'
 
   // Link yang sudah valid (/admin/xxx tanpa ID path)
   if (raw.match(/^\/admin\/[a-z]+$/)) return raw
 
-  // Fallback: kembalikan raw tapi strip ID suffix
-  const base = raw.replace(/\/[a-zA-Z0-9]{20,}$/, '')
-  return base || null
+  // Fallback: kembalikan raw jika format tidak dikenal
+  return raw || null
 }
 
 // ── Filter tabs ────────────────────────────────────────────────
