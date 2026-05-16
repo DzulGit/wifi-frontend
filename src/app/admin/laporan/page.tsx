@@ -5,9 +5,8 @@ import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import { exportLaporanBulanan } from '@/lib/export'
 import { RefreshCw, TrendingUp, Users, CreditCard, FileText, Download } from 'lucide-react'
-import NotificationBell from '@/components/admin/NotificationBell'
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
 import { toast } from 'sonner'
@@ -18,7 +17,6 @@ const formatRp = (n: number) =>
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des']
 const MONTHS_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const GOLD = '#F5A623'
-const DARK = '#1A1A1A'
 
 export default function LaporanPage() {
   const [userStats, setUserStats] = useState<any>(null)
@@ -27,13 +25,53 @@ export default function LaporanPage() {
   const [ticketStats, setTicketStats] = useState<any>(null)
   const [regStats, setRegStats] = useState<any>(null)
   const [packages, setPackages] = useState<any[]>([])
+  // ✅ FIX: state khusus untuk data revenue per bulan (bukan dummy)
+  const [monthlyRevenue, setMonthlyRevenue] = useState<{ month: string; pendapatan: number; isCurrent: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [year, setYear] = useState(new Date().getFullYear())
 
-  // Export state
   const [exporting, setExporting] = useState(false)
   const [exportMonth, setExportMonth] = useState(new Date().getMonth() + 1)
   const [exportYear, setExportYear] = useState(new Date().getFullYear())
+
+  // ✅ FIX: fetch revenue per bulan dari /payments/stats dengan filter bulan
+  const fetchMonthlyRevenue = useCallback(async (targetYear: number) => {
+    const currentMonth = new Date().getMonth() // 0-based
+
+    const monthPromises = MONTHS.slice(0, currentMonth + 1).map(async (month, i) => {
+      try {
+        // Ambil semua payment APPROVED untuk bulan & tahun tertentu
+        const { data } = await api.get('/payments', {
+          params: {
+            status: 'APPROVED',
+            limit: 1000,
+            page: 1,
+          },
+        })
+
+        // Filter client-side berdasarkan processedAt (bulan & tahun)
+        const payments: any[] = data.data ?? []
+        const filtered = payments.filter((p: any) => {
+          if (!p.processedAt) return false
+          const d = new Date(p.processedAt)
+          return d.getFullYear() === targetYear && d.getMonth() === i
+        })
+
+        const total = filtered.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0)
+
+        return {
+          month,
+          pendapatan: total,
+          isCurrent: i === currentMonth,
+        }
+      } catch {
+        return { month, pendapatan: 0, isCurrent: i === currentMonth }
+      }
+    })
+
+    const results = await Promise.all(monthPromises)
+    setMonthlyRevenue(results)
+  }, [])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -52,13 +90,16 @@ export default function LaporanPage() {
       setTicketStats(tStats.data)
       setRegStats(rStats.data)
       setPackages(Array.isArray(pkgs.data) ? pkgs.data : pkgs.data.data ?? [])
+
+      // ✅ Fetch monthly revenue setelah stats selesai
+      await fetchMonthlyRevenue(year)
     } catch { toast.error('Gagal memuat data laporan') }
     finally { setLoading(false) }
-  }, [])
+  }, [year, fetchMonthlyRevenue])
 
+  // ✅ Re-fetch monthly revenue saat tahun berubah
   useEffect(() => { fetchData() }, [fetchData])
 
-  // ── Export handler ─────────────────────────────────────────
   const handleExport = async () => {
     setExporting(true)
     try {
@@ -76,16 +117,6 @@ export default function LaporanPage() {
       setExporting(false)
     }
   }
-
-  // Generate estimated monthly revenue from billing stats
-  const currentMonth = new Date().getMonth()
-  const monthlyRevenue = MONTHS.slice(0, currentMonth + 1).map((month, i) => ({
-    month,
-    pendapatan: i === currentMonth
-      ? (billingStats?.totalRevenueThisMonth ?? 0)
-      : Math.floor((billingStats?.totalRevenueThisMonth ?? 0) * (0.7 + Math.random() * 0.5)),
-    isCurrent: i === currentMonth,
-  }))
 
   const userPieData = userStats ? [
     { name: 'Aktif', value: userStats.active, color: '#22C55E' },
@@ -136,10 +167,8 @@ export default function LaporanPage() {
             <button onClick={fetchData} className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
               <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <NotificationBell />
           </div>
 
-          {/* Export section */}
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
             <span className="text-xs font-semibold text-gray-400 hidden sm:block">Export Laporan:</span>
             <select
@@ -221,30 +250,44 @@ export default function LaporanPage() {
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100">
             <div className="flex items-center justify-between mb-5">
               <div>
+                {/* ✅ Label chart sekarang dinamis sesuai tahun yang dipilih */}
                 <h3 className="font-semibold text-gray-900">Pendapatan Bulanan {year}</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Berdasarkan tagihan yang lunas</p>
+                <p className="text-xs text-gray-400 mt-0.5">Berdasarkan pembayaran yang disetujui</p>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-[#F5A623]" />
-                <span className="text-xs text-gray-400">Pendapatan</span>
+                <span className="text-xs text-gray-400">Pendapatan nyata</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={monthlyRevenue} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} />
-                <Tooltip
-                  formatter={(v) => [formatRp(Number(v)), 'Pendapatan']}
-                  contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
-                />
-                <Bar dataKey="pendapatan" radius={[6, 6, 0, 0]}>
-                  {monthlyRevenue.map((entry, i) => (
-                    <Cell key={i} fill={entry.isCurrent ? GOLD : '#f0f0f0'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+
+            {/* ✅ Gunakan monthlyRevenue dari state (data nyata), bukan dummy */}
+            {monthlyRevenue.length === 0 ? (
+              <div className="flex items-center justify-center h-[220px] text-gray-300 text-sm">
+                Belum ada data pembayaran untuk tahun ini
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyRevenue} barSize={28}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    tickFormatter={v => v === 0 ? '0' : `${(v / 1000000).toFixed(0)}jt`}
+                  />
+                  <Tooltip
+                    formatter={(v) => [formatRp(Number(v)), 'Pendapatan']}
+                    contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
+                  />
+                  <Bar dataKey="pendapatan" radius={[6, 6, 0, 0]}>
+                    {monthlyRevenue.map((entry, i) => (
+                      <Cell key={i} fill={entry.isCurrent ? GOLD : '#f0f0f0'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-gray-100">
