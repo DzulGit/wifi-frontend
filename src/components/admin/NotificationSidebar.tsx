@@ -1,49 +1,219 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { X, Bell, MessageSquare, CreditCard, UserPlus, AlertTriangle, CheckCircle, RefreshCw, Ticket } from 'lucide-react'
-import api from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import {
+  X, Bell, CreditCard, UserPlus, Ticket, AlertTriangle,
+  CheckCircle, RefreshCw, ClipboardList, Package,
+  MapPin, XOctagon, Zap, Info, ChevronRight, BellOff
+} from 'lucide-react'
+import api from '@/lib/api'
 
 // ── Types ──────────────────────────────────────────────────────
-interface NotifItem {
+interface AdminNotif {
   id: string
-  type: 'ticket_new' | 'ticket_reply' | 'payment_pending' | 'registration_pending' | 'system'
   title: string
   message: string
-  time: string        // ISO string
+  category: 'FINANCE' | 'SUPPORT' | 'SYSTEM' | 'ACCOUNT' | 'BILLING'
+  link: string | null
+  isUrgent: boolean
   isRead: boolean
-  link?: string       // route to navigate
-  meta?: Record<string, any>
+  metadata: Record<string, any>
+  createdAt: string
 }
 
+interface GroupedNotifs {
+  label: string
+  items: AdminNotif[]
+}
+
+// ── Helpers ────────────────────────────────────────────────────
 const timeAgo = (date: string) => {
   const diff = Date.now() - new Date(date).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Baru saja'
-  if (mins < 60) return `${mins} mnt lalu`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours} jam lalu`
-  return `${Math.floor(hours / 24)} hari lalu`
+  const m = Math.floor(diff / 60000)
+  const h = Math.floor(diff / 3600000)
+  const d = Math.floor(diff / 86400000)
+  if (m < 1) return 'Baru saja'
+  if (m < 60) return `${m} mnt lalu`
+  if (h < 24) return `${h} jam lalu`
+  return `${d} hari lalu`
 }
 
-function NotifIcon({ type }: { type: NotifItem['type'] }) {
-  const map = {
-    ticket_new:            { icon: Ticket,       bg: 'bg-purple-100', color: 'text-purple-600' },
-    ticket_reply:          { icon: MessageSquare, bg: 'bg-blue-100',   color: 'text-blue-600'   },
-    payment_pending:       { icon: CreditCard,    bg: 'bg-[#F5A623]/15', color: 'text-[#F5A623]' },
-    registration_pending:  { icon: UserPlus,      bg: 'bg-green-100',  color: 'text-green-600'  },
-    system:                { icon: Bell,          bg: 'bg-gray-100',   color: 'text-gray-500'   },
+const groupByDate = (notifs: AdminNotif[]): GroupedNotifs[] => {
+  const groups: Record<string, AdminNotif[]> = {}
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+
+  for (const n of notifs) {
+    const d = new Date(n.createdAt)
+    let label: string
+    if (d.toDateString() === today.toDateString()) label = 'Hari ini'
+    else if (d.toDateString() === yesterday.toDateString()) label = 'Kemarin'
+    else label = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })
+
+    if (!groups[label]) groups[label] = []
+    groups[label].push(n)
   }
-  const { icon: Icon, bg, color } = map[type] ?? map.system
+
+  return Object.entries(groups).map(([label, items]) => ({ label, items }))
+}
+
+// ── Icon + color resolver berdasarkan category + title ─────────
+const getNotifStyle = (notif: AdminNotif) => {
+  const t = notif.title
+
+  // SYSTEM — request user
+  if (t.includes('Ganti Paket'))
+    return { icon: Package, bg: 'bg-blue-100', color: 'text-blue-600', dot: 'bg-blue-500' }
+  if (t.includes('Pindah Alamat'))
+    return { icon: MapPin, bg: 'bg-emerald-100', color: 'text-emerald-600', dot: 'bg-emerald-500' }
+  if (t.includes('Putus Berlangganan'))
+    return { icon: XOctagon, bg: 'bg-red-100', color: 'text-red-600', dot: 'bg-red-500' }
+  if (t.includes('Permintaan'))
+    return { icon: ClipboardList, bg: 'bg-purple-100', color: 'text-purple-600', dot: 'bg-purple-500' }
+
+  // FINANCE
+  if (notif.category === 'FINANCE') {
+    if (t.includes('Masuk') || t.includes('Pending'))
+      return { icon: CreditCard, bg: 'bg-amber-100', color: 'text-amber-600', dot: 'bg-amber-500' }
+    if (t.includes('Disetujui'))
+      return { icon: CheckCircle, bg: 'bg-green-100', color: 'text-green-600', dot: 'bg-green-500' }
+    return { icon: CreditCard, bg: 'bg-blue-100', color: 'text-blue-600', dot: 'bg-blue-500' }
+  }
+
+  // SUPPORT (ticket)
+  if (notif.category === 'SUPPORT')
+    return { icon: Ticket, bg: 'bg-purple-100', color: 'text-purple-600', dot: 'bg-purple-500' }
+
+  // BILLING
+  if (notif.category === 'BILLING') {
+    if (t.includes('Terlambat') || t.includes('Overdue'))
+      return { icon: AlertTriangle, bg: 'bg-red-100', color: 'text-red-500', dot: 'bg-red-500' }
+    return { icon: Zap, bg: 'bg-amber-100', color: 'text-amber-600', dot: 'bg-amber-500' }
+  }
+
+  // ACCOUNT
+  if (notif.category === 'ACCOUNT')
+    return { icon: UserPlus, bg: 'bg-green-100', color: 'text-green-600', dot: 'bg-green-500' }
+
+  // default
+  return { icon: Info, bg: 'bg-gray-100', color: 'text-gray-500', dot: 'bg-gray-400' }
+}
+
+// ── Resolve link yang benar ────────────────────────────────────
+// Backend kadang set link ke '/admin/tiket/${id}' yang tidak ada route-nya.
+// Kita normalize ke route yang valid.
+const resolveLink = (notif: AdminNotif): string | null => {
+  const raw = notif.link
+  const meta = notif.metadata ?? {}
+
+  // Kalau tidak ada link sama sekali
+  if (!raw) {
+    // Fallback berdasarkan category
+    if (notif.category === 'FINANCE') return '/admin/pembayaran'
+    if (notif.category === 'SUPPORT') return '/admin/tiket'
+    if (notif.category === 'BILLING') return '/admin/tagihan'
+    if (notif.category === 'ACCOUNT') return '/admin/pelanggan'
+    if (notif.category === 'SYSTEM') return '/admin/permintaan'
+    return null
+  }
+
+  // Tiket — route detail tiket tidak ada di frontend (/admin/tiket/:id belum dibuat)
+  // Arahkan ke halaman list tiket
+  if (raw.match(/^\/admin\/tiket\/.+/)) return '/admin/tiket'
+
+  // Pembayaran — sama, detail sudah inline di halaman list
+  if (raw.match(/^\/admin\/pembayaran\/.+/)) return '/admin/pembayaran'
+
+  // Tagihan — arahkan ke list
+  if (raw.match(/^\/admin\/tagihan\/.+/)) return '/admin/tagihan'
+
+  // Pelanggan detail — bisa valid kalau ada params ?id=
+  if (raw.match(/^\/admin\/pelanggan\/.+/)) return '/admin/pelanggan'
+
+  // Pendaftar detail
+  if (raw.match(/^\/admin\/pendaftar\/.+/)) return '/admin/pendaftar'
+
+  // Permintaan
+  if (raw === '/admin/permintaan' || raw.includes('permintaan')) return '/admin/permintaan'
+
+  // Link yang sudah valid (/admin/xxx tanpa ID path)
+  if (raw.match(/^\/admin\/[a-z]+$/)) return raw
+
+  // Fallback: kembalikan raw tapi strip ID suffix
+  const base = raw.replace(/\/[a-zA-Z0-9]{20,}$/, '')
+  return base || null
+}
+
+// ── Filter tabs ────────────────────────────────────────────────
+type FilterTab = 'all' | 'unread' | 'FINANCE' | 'SUPPORT' | 'SYSTEM' | 'BILLING' | 'ACCOUNT'
+
+const TABS: { key: FilterTab; label: string }[] = [
+  { key: 'unread', label: 'Belum Dibaca' },
+  { key: 'all', label: 'Semua' },
+  { key: 'FINANCE', label: 'Keuangan' },
+  { key: 'SUPPORT', label: 'Tiket' },
+  { key: 'SYSTEM', label: 'Permintaan' },
+  { key: 'BILLING', label: 'Tagihan' },
+]
+
+// ── Komponen Item Notifikasi ───────────────────────────────────
+function NotifItem({
+  notif,
+  onClick,
+}: {
+  notif: AdminNotif
+  onClick: (notif: AdminNotif) => void
+}) {
+  const style = getNotifStyle(notif)
+  const Icon = style.icon
+  const link = resolveLink(notif)
+
   return (
-    <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-      <Icon className={`w-4 h-4 ${color}`} />
-    </div>
+    <button
+      onClick={() => onClick(notif)}
+      className={`w-full text-left px-4 py-3.5 flex items-start gap-3 transition-all hover:bg-gray-50 group relative ${
+        !notif.isRead ? 'bg-blue-50/40' : ''
+      } ${!link ? 'cursor-default' : 'cursor-pointer'}`}
+    >
+      {/* Unread dot */}
+      {!notif.isRead && (
+        <span className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${style.dot} flex-shrink-0`} />
+      )}
+
+      {/* Icon */}
+      <div className={`w-9 h-9 rounded-xl ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-105 transition-transform`}>
+        <Icon className={`w-4 h-4 ${style.color}`} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className={`text-sm leading-snug ${!notif.isRead ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+            {notif.title}
+          </p>
+          {notif.isUrgent && (
+            <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
+              URGENT
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{notif.message}</p>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+          {link && (
+            <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${style.color} opacity-0 group-hover:opacity-100 transition-opacity`}>
+              Buka <ChevronRight className="w-2.5 h-2.5" />
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
   )
 }
 
-// ── Sidebar Component ──────────────────────────────────────────
+// ── Main Sidebar Component ─────────────────────────────────────
 interface NotificationSidebarProps {
   open: boolean
   onClose: () => void
@@ -52,207 +222,152 @@ interface NotificationSidebarProps {
 
 export default function NotificationSidebar({ open, onClose, onUnreadChange }: NotificationSidebarProps) {
   const router = useRouter()
-  const [notifs, setNotifs]       = useState<NotifItem[]>([])
-  const [loading, setLoading]     = useState(false)
-  const [filter, setFilter]       = useState<'all' | 'unread'>('all')
-  const intervalRef               = useRef<NodeJS.Timeout | null>(null)
+  const [notifs, setNotifs] = useState<AdminNotif[]>([])
+  const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState<FilterTab>('unread')
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Fetch: build notif list from multiple endpoints ────────
   const fetchNotifs = useCallback(async () => {
     setLoading(true)
     try {
-      const [ticketsRes, paymentsRes, regsRes] = await Promise.allSettled([
-        api.get('/tickets?limit=50&page=1'),
-        api.get('/payments?status=PENDING&limit=50&page=1'),
-        api.get('/registrations?status=PENDING&limit=50&page=1'),
-      ])
+      // Ambil langsung dari AdminNotification table — data sudah clean + punya link
+      const { data } = await api.get('/admin/notifications?limit=100')
+      const items: AdminNotif[] = data.notifications ?? []
 
-      const items: NotifItem[] = []
+      // Sort terbaru dulu
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-      // ── Tiket baru (OPEN) ──────────────────────────────────
-      if (ticketsRes.status === 'fulfilled') {
-        const tickets = ticketsRes.value.data?.data ?? ticketsRes.value.data ?? []
-        for (const t of tickets) {
-          // Tiket baru yang belum ada balasan admin
-          const hasAdminReply = t.replies?.some((r: any) => r.isFromAdmin) ?? false
-          if (t.status === 'OPEN' && !hasAdminReply) {
-            items.push({
-              id: `ticket-new-${t.id}`,
-              type: 'ticket_new',
-              title: 'Tiket Baru Masuk',
-              message: `${t.user?.fullName ?? 'Pelanggan'}: "${t.title}"`,
-              time: t.createdAt,
-              isRead: false,
-              link: '/admin/tiket',
-              meta: { ticketId: t.id, priority: t.priority },
-            })
-          }
-
-          // Reply dari user (isFromAdmin = false & reply terbaru bukan dari admin)
-          if (t.replies && t.replies.length > 0) {
-            const lastReply = t.replies[t.replies.length - 1]
-            if (!lastReply.isFromAdmin) {
-              // Tiket yang ada reply user terbaru
-              const replyAge = Date.now() - new Date(lastReply.createdAt).getTime()
-              if (replyAge < 24 * 60 * 60 * 1000) { // dalam 24 jam
-                items.push({
-                  id: `ticket-reply-${t.id}-${lastReply.id}`,
-                  type: 'ticket_reply',
-                  title: 'Balasan Tiket dari Pelanggan',
-                  message: `${t.user?.fullName ?? 'Pelanggan'} membalas tiket #${t.ticketNumber}`,
-                  time: lastReply.createdAt,
-                  isRead: false,
-                  link: '/admin/tiket',
-                  meta: { ticketId: t.id },
-                })
-              }
-            }
-          }
-        }
-      }
-
-      // ── Pembayaran pending ─────────────────────────────────
-      if (paymentsRes.status === 'fulfilled') {
-        const payments = paymentsRes.value.data?.data ?? paymentsRes.value.data ?? []
-        for (const p of payments) {
-          items.push({
-            id: `payment-${p.id}`,
-            type: 'payment_pending',
-            title: 'Pembayaran Menunggu Validasi',
-            message: `${p.user?.fullName ?? 'Pelanggan'} mengirim bukti pembayaran ${
-              new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(p.amount)
-            }`,
-            time: p.createdAt,
-            isRead: false,
-            link: '/admin/pembayaran',
-            meta: { paymentId: p.id },
-          })
-        }
-      }
-
-      // ── Registrasi pending ─────────────────────────────────
-      if (regsRes.status === 'fulfilled') {
-        const regs = regsRes.value.data?.data ?? regsRes.value.data ?? []
-        for (const r of regs) {
-          items.push({
-            id: `reg-${r.id}`,
-            type: 'registration_pending',
-            title: 'Pendaftaran Baru Menunggu',
-            message: `${r.fullName} mendaftar paket internet di ${r.city ?? r.address}`,
-            time: r.createdAt,
-            isRead: false,
-            link: '/admin/pendaftar',
-            meta: { regId: r.id },
-          })
-        }
-      }
-
-      // Sort by time descending
-      items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-
-      // Restore read state from localStorage
-      const readIds: string[] = JSON.parse(localStorage.getItem('admin_notif_read') ?? '[]')
-      const final = items.map(item => ({
-        ...item,
-        isRead: readIds.includes(item.id),
-      }))
-
-      setNotifs(final)
-      const unread = final.filter(n => !n.isRead).length
+      setNotifs(items)
+      const unread = items.filter(n => !n.isRead).length
       onUnreadChange?.(unread)
-
     } catch (e) {
-      // silent fail — jangan ganggu UX
+      console.warn('[NotificationSidebar] fetch error:', e)
     } finally {
       setLoading(false)
     }
   }, [onUnreadChange])
 
-  // Polling setiap 30 detik
+  // Fetch saat sidebar dibuka
+  useEffect(() => {
+    if (open) fetchNotifs()
+  }, [open, fetchNotifs])
+
+  // Polling 30 detik
   useEffect(() => {
     fetchNotifs()
     intervalRef.current = setInterval(fetchNotifs, 30000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchNotifs])
 
-  const markAsRead = (id: string) => {
-    setNotifs(prev => {
-      const updated = prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-      const readIds = updated.filter(n => n.isRead).map(n => n.id)
-      localStorage.setItem('admin_notif_read', JSON.stringify(readIds))
-      onUnreadChange?.(updated.filter(n => !n.isRead).length)
-      return updated
-    })
+  const markAsRead = async (id: string) => {
+    try {
+      await api.post(`/admin/notifications/${id}/read`)
+      setNotifs(prev => {
+        const updated = prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+        onUnreadChange?.(updated.filter(n => !n.isRead).length)
+        return updated
+      })
+    } catch { /* silent */ }
   }
 
-  const markAllRead = () => {
-    setNotifs(prev => {
-      const updated = prev.map(n => ({ ...n, isRead: true }))
-      localStorage.setItem('admin_notif_read', JSON.stringify(updated.map(n => n.id)))
-      onUnreadChange?.(0)
-      return updated
-    })
+  const markAllRead = async () => {
+    try {
+      await api.post('/admin/notifications/read/all')
+      setNotifs(prev => {
+        const updated = prev.map(n => ({ ...n, isRead: true }))
+        onUnreadChange?.(0)
+        return updated
+      })
+    } catch { /* silent */ }
   }
 
-  const handleClick = (notif: NotifItem) => {
-    markAsRead(notif.id)
-    if (notif.link) {
-      router.push(notif.link)
+  const handleClick = async (notif: AdminNotif) => {
+    // Mark as read dulu (fire and forget)
+    if (!notif.isRead) markAsRead(notif.id)
+
+    const link = resolveLink(notif)
+    if (link) {
       onClose()
+      router.push(link)
     }
   }
 
-  const displayed = filter === 'unread' ? notifs.filter(n => !n.isRead) : notifs
+  // Filter displayed
+  const displayed = notifs.filter(n => {
+    if (filter === 'unread') return !n.isRead
+    if (filter === 'all') return true
+    return n.category === filter
+  })
+
+  const grouped = groupByDate(displayed)
   const unreadCount = notifs.filter(n => !n.isRead).length
+  const urgentCount = notifs.filter(n => n.isUrgent && !n.isRead).length
 
-  // Group by date label
-  const grouped: { label: string; items: NotifItem[] }[] = []
-  for (const notif of displayed) {
-    const d = new Date(notif.time)
-    const today = new Date()
-    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-    const label =
-      d.toDateString() === today.toDateString() ? 'Hari ini' :
-      d.toDateString() === yesterday.toDateString() ? 'Kemarin' :
-      d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })
-
-    const group = grouped.find(g => g.label === label)
-    if (group) group.items.push(notif)
-    else grouped.push({ label, items: [notif] })
+  // Category counts untuk badge tabs
+  const countByFilter = (f: FilterTab) => {
+    if (f === 'unread') return unreadCount
+    if (f === 'all') return notifs.length
+    return notifs.filter(n => n.category === f && !n.isRead).length
   }
 
   return (
     <>
       {/* Overlay */}
       <div
-        className={`fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 z-40 transition-all duration-300 ${
+          open ? 'bg-black/30 backdrop-blur-[2px] pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={onClose}
       />
 
-      {/* Sidebar */}
-      <div className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[400px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}>
-
-        {/* Header */}
-        <div className="bg-[#1A1A1A] px-5 py-4 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#F5A623]/20 flex items-center justify-center">
-                <Bell className="w-4 h-4 text-[#F5A623]" />
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-sm leading-none">Notifikasi</h2>
+      {/* Sidebar panel */}
+      <div
+        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        {/* ── Header ─────────────────────────────────── */}
+        <div className="bg-[#1A1A1A] flex-shrink-0">
+          {/* Top bar */}
+          <div className="px-5 pt-5 pb-3 flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-[#F5A623]/20 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-[#F5A623]" />
+                </div>
                 {unreadCount > 0 && (
-                  <p className="text-white/40 text-xs mt-0.5">{unreadCount} belum dibaca</p>
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-[#1A1A1A] flex items-center justify-center px-1">
+                    <span className="text-white text-[9px] font-bold leading-none">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  </span>
                 )}
               </div>
+              <div>
+                <h2 className="text-white font-bold text-base leading-none">Notifikasi</h2>
+                <p className="text-white/40 text-xs mt-0.5">
+                  {unreadCount > 0 ? `${unreadCount} belum dibaca` : 'Semua sudah dibaca'}
+                  {urgentCount > 0 && ` · ${urgentCount} urgent`}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={fetchNotifs}
                 className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                title="Refresh"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-white/60 ${loading ? 'animate-spin' : ''}`} />
               </button>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                  title="Tandai semua dibaca"
+                >
+                  <CheckCircle className="w-3.5 h-3.5 text-white/60" />
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
@@ -262,111 +377,123 @@ export default function NotificationSidebar({ open, onClose, onUnreadChange }: N
             </div>
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex gap-1.5">
-            {(['all', 'unread'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  filter === f
-                    ? 'bg-[#F5A623] text-black'
-                    : 'bg-white/10 text-white/50 hover:bg-white/20'
-                }`}
-              >
-                {f === 'all' ? 'Semua' : 'Belum Dibaca'}
-                {f === 'unread' && unreadCount > 0 && (
-                  <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            ))}
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="ml-auto text-[11px] text-white/40 hover:text-white/70 transition-colors px-1"
-              >
-                Tandai semua dibaca
-              </button>
-            )}
+          {/* Urgent banner */}
+          {urgentCount > 0 && (
+            <div className="mx-5 mb-3 bg-red-500/15 border border-red-500/25 rounded-xl px-3 py-2 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+              <p className="text-red-300 text-xs font-medium">
+                {urgentCount} notifikasi urgent butuh perhatian segera
+              </p>
+            </div>
+          )}
+
+          {/* Filter tabs — horizontal scroll */}
+          <div className="px-4 pb-3 flex gap-1.5 overflow-x-auto scrollbar-none">
+            {TABS.map(tab => {
+              const count = countByFilter(tab.key)
+              const isActive = filter === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilter(tab.key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-[#F5A623] text-black'
+                      : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                  {count > 0 && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                      isActive ? 'bg-black/20 text-black' : 'bg-red-500 text-white'
+                    }`}>
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* Content */}
+        {/* ── Content ─────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
           {loading && notifs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-3">
-              <div className="w-8 h-8 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-400 text-sm">Memuat notifikasi...</p>
+            // Loading skeleton
+            <div className="p-4 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex gap-3 animate-pulse">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex-shrink-0" />
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3.5 bg-gray-100 rounded-full w-2/3" />
+                    <div className="h-3 bg-gray-100 rounded-full w-full" />
+                    <div className="h-2.5 bg-gray-100 rounded-full w-1/4" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : displayed.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 gap-3 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
-                <CheckCircle className="w-7 h-7 text-gray-300" />
+            // Empty state
+            <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4 pb-16">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <BellOff className="w-8 h-8 text-gray-300" />
               </div>
-              <p className="text-gray-500 font-medium">
-                {filter === 'unread' ? 'Semua sudah dibaca!' : 'Tidak ada notifikasi'}
-              </p>
-              <p className="text-gray-400 text-xs">
-                {filter === 'unread' ? 'Tidak ada notifikasi baru untuk saat ini' : 'Notifikasi baru akan muncul di sini'}
-              </p>
+              <div>
+                <p className="text-gray-600 font-semibold">
+                  {filter === 'unread' ? 'Tidak ada notifikasi baru' : 'Tidak ada notifikasi'}
+                </p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {filter === 'unread'
+                    ? 'Semua notifikasi sudah dibaca'
+                    : 'Belum ada aktivitas di kategori ini'}
+                </p>
+              </div>
+              {filter === 'unread' && notifs.length > 0 && (
+                <button
+                  onClick={() => setFilter('all')}
+                  className="text-sm text-[#F5A623] font-semibold hover:underline"
+                >
+                  Lihat semua notifikasi
+                </button>
+              )}
             </div>
           ) : (
+            // Grouped list
             <div className="pb-4">
               {grouped.map(({ label, items }) => (
                 <div key={label}>
                   {/* Date separator */}
-                  <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm px-5 py-2 border-b border-gray-100 z-10">
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                  <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm px-5 py-2 border-b border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
                   </div>
 
-                  {/* Notif items */}
-                  {items.map(notif => (
-                    <button
-                      key={notif.id}
-                      onClick={() => handleClick(notif)}
-                      className={`w-full text-left px-5 py-4 flex items-start gap-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                        !notif.isRead ? 'bg-blue-50/30' : ''
-                      }`}
-                    >
-                      <NotifIcon type={notif.type} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className={`text-sm leading-tight ${!notif.isRead ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
-                            {notif.title}
-                          </p>
-                          {!notif.isRead && (
-                            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{notif.message}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <p className="text-[10px] text-gray-400">{timeAgo(notif.time)}</p>
-                          {notif.meta?.priority && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              notif.meta.priority === 'CRITICAL' ? 'bg-red-100 text-red-500' :
-                              notif.meta.priority === 'HIGH' ? 'bg-orange-100 text-orange-500' :
-                              'bg-gray-100 text-gray-400'
-                            }`}>
-                              {notif.meta.priority}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                  {/* Items */}
+                  <div className="divide-y divide-gray-50">
+                    {items.map(notif => (
+                      <NotifItem key={notif.id} notif={notif} onClick={handleClick} />
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
-          <p className="text-[11px] text-gray-400 text-center">
-            Diperbarui setiap 30 detik · {notifs.length} notifikasi
-          </p>
+        {/* ── Footer ─────────────────────────────────── */}
+        <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50/50 px-5 py-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-gray-400">
+              {notifs.length} notifikasi · diperbarui setiap 30 detik
+            </p>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-[11px] font-semibold text-[#F5A623] hover:underline"
+              >
+                Tandai semua dibaca
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </>
