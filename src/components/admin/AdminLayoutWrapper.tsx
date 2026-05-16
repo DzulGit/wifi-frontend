@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth.store'
+import AdminNavbar from '@/components/admin/AdminNavbar'
 
 interface AdminLayoutWrapperProps {
   children: React.ReactNode
@@ -10,7 +11,11 @@ interface AdminLayoutWrapperProps {
   subtitle?: string
 }
 
-export default function AdminLayoutWrapper({ children, title, subtitle }: AdminLayoutWrapperProps) {
+export default function AdminLayoutWrapper({ 
+  children, 
+  title, 
+  subtitle 
+}: AdminLayoutWrapperProps) {
   const { isAuthenticated, isAdmin } = useAuthStore()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -24,15 +29,14 @@ export default function AdminLayoutWrapper({ children, title, subtitle }: AdminL
   if (!mounted || !isAuthenticated || !isAdmin) return null
 
   return (
-    <div className="w-full">
-      {/* Page header */}
-      {(title || subtitle) && (
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-          {subtitle && <p className="text-gray-400 text-sm mt-0.5">{subtitle}</p>}
-        </div>
-      )}
-      {children}
+    <div className="flex flex-col min-h-full">
+      {/* Navbar tetap ada dengan notifikasi sidebar */}
+      <AdminNavbar title={title} subtitle={subtitle} />
+      
+      {/* Content */}
+      <div className="flex-1">
+        {children}
+      </div>
     </div>
   )
 }
