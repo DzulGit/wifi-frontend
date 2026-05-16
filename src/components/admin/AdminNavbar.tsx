@@ -48,7 +48,8 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [totalUnread, setTotalUnread] = useState(0)
   const [loadingNotif, setLoadingNotif] = useState(false)
-  const notifRef = useRef<HTMLDivElement>(null)
+  // Ref ke seluruh container notif (tombol + dropdown)
+  const notifContainerRef = useRef<HTMLDivElement>(null)
   const [showHelp, setShowHelp] = useState(false)
 
   // Clock
@@ -60,22 +61,14 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // ✅ FIX: fetchSummary sekarang handle dua kemungkinan shape response
-  // Backend bisa return { total, payments, registrations, tickets, invoices }
-  // atau { totalUnread, notifications }
   const fetchSummary = useCallback(async () => {
     try {
       const { data } = await api.get('/admin/notifications/summary')
-
-      // Cek dua kemungkinan shape response dari backend
       if (typeof data.total === 'number') {
-        // Shape: { total, payments, registrations, tickets, invoices }
         setTotalUnread(data.total)
       } else if (typeof data.totalUnread === 'number') {
-        // Shape alternatif jika backend pakai totalUnread
         setTotalUnread(data.totalUnread)
       } else {
-        // Fallback: hitung manual dari field individual jika ada
         const fallback =
           (data.payments ?? 0) +
           (data.registrations ?? 0) +
@@ -84,7 +77,6 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
         setTotalUnread(fallback)
       }
     } catch (err) {
-      // ✅ Log error agar mudah debug, jangan silent catch
       console.warn('[AdminNavbar] Gagal fetch notification summary:', err)
     }
   }, [])
@@ -95,15 +87,11 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
     return () => clearInterval(interval)
   }, [fetchSummary])
 
-  // Fetch detail notif saat dropdown dibuka
   const fetchNotifications = useCallback(async () => {
     setLoadingNotif(true)
     try {
       const { data } = await api.get('/admin/notifications')
       setNotifications(data.notifications ?? [])
-
-      // ✅ FIX: Sync totalUnread dari response detail juga
-      // Ini yang menyebabkan badge muncul saat bell diklik tapi tidak muncul sebelumnya
       if (typeof data.totalUnread === 'number') {
         setTotalUnread(data.totalUnread)
       }
@@ -114,21 +102,39 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
     }
   }, [])
 
-  const handleBellClick = () => {
-    if (!showNotif) fetchNotifications()
-    setShowNotif(prev => !prev)
-  }
+  // Toggle dropdown — fetch saat buka
+  const handleBellClick = useCallback(() => {
+    setShowNotif(prev => {
+      const next = !prev
+      if (next) fetchNotifications()
+      return next
+    })
+  }, [fetchNotifications])
 
-  // Tutup dropdown kalau klik di luar
+  // Tutup dropdown saat klik di luar container (bukan di dalam)
   useEffect(() => {
+    if (!showNotif) return
+
     const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+      if (
+        notifContainerRef.current &&
+        !notifContainerRef.current.contains(e.target as Node)
+      ) {
         setShowNotif(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+
+    // Tambahkan sedikit delay agar handler tidak langsung aktif
+    // (mencegah event yang sama menutup dropdown yang baru dibuka)
+    const timeout = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 0)
+
+    return () => {
+      clearTimeout(timeout)
+      document.removeEventListener('mousedown', handler)
+    }
+  }, [showNotif])
 
   const handleNotifClick = (link: string) => {
     setShowNotif(false)
@@ -149,14 +155,13 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
           <div className="flex items-center gap-2">
             <span className="text-gray-400 text-sm font-mono hidden md:block">{time}</span>
 
-            {/* Bell + Dropdown */}
-            <div className="relative" ref={notifRef}>
+            {/* Bell + Dropdown — satu ref untuk seluruh container */}
+            <div className="relative" ref={notifContainerRef}>
               <button
                 onClick={handleBellClick}
                 className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors relative"
               >
                 <Bell className="w-4 h-4 text-gray-500" />
-                {/* ✅ Badge muncul jika totalUnread > 0, termasuk dari fetchSummary */}
                 {totalUnread > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white flex items-center justify-center px-1">
                     <span className="text-white text-[10px] font-bold leading-none">
@@ -212,7 +217,7 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
                       </div>
                     ) : (
                       notifications.map((notif) => {
-                        const cfg = TYPE_CONFIG[notif.type]
+                        const cfg = TYPE_CONFIG[notif.type] ?? TYPE_CONFIG.INVOICE
                         const Icon = cfg.icon
                         return (
                           <button
@@ -237,6 +242,16 @@ export default function AdminNavbar({ title, subtitle }: AdminNavbarProps) {
                         )
                       })
                     )}
+                  </div>
+
+                  {/* Footer — link ke halaman permintaan user */}
+                  <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50">
+                    <button
+                      onClick={() => { setShowNotif(false); router.push('/admin/permintaan') }}
+                      className="text-xs text-[#F5A623] font-semibold hover:underline"
+                    >
+                      Lihat semua permintaan user →
+                    </button>
                   </div>
                 </div>
               )}
