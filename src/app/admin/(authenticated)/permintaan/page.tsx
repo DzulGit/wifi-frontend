@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
   RefreshCw, CheckCircle, XCircle, Package, MapPin,
@@ -8,7 +9,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-// ── Types ──────────────────────────────────────────────────────
+type PermintaanDecision = 'APPROVED' | 'REJECTED'
+
 interface UserRequest {
   id: string
   title: string
@@ -22,6 +24,9 @@ interface UserRequest {
     newPackageId?: string
     newAddress?: string
     reason?: string
+    decision?: PermintaanDecision
+    rejectNote?: string
+    processedAt?: string
   }
   createdAt: string
 }
@@ -43,7 +48,14 @@ interface UserInfo {
   package?: { name: string }
 }
 
-// ── Helpers ────────────────────────────────────────────────────
+type TabKey = '' | 'ganti_paket' | 'pindah_alamat' | 'putus_langganan'
+
+const TAB_TO_TYPE: Record<Exclude<TabKey, ''>, string> = {
+  ganti_paket: 'PACKAGE',
+  pindah_alamat: 'ADDRESS',
+  putus_langganan: 'CANCEL',
+}
+
 const timeAgo = (date: string) => {
   const diff = Date.now() - new Date(date).getTime()
   const mins = Math.floor(diff / 60000)
@@ -57,13 +69,14 @@ const timeAgo = (date: string) => {
 const formatRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
-// ── Identifikasi tipe request dari judul notifikasi ──────────
 const getRequestType = (title: string) => {
   if (title.includes('Ganti Paket')) return 'PACKAGE'
   if (title.includes('Pindah Alamat')) return 'ADDRESS'
   if (title.includes('Putus Berlangganan')) return 'CANCEL'
   return 'UNKNOWN'
 }
+
+const isPending = (req: UserRequest) => !req.metadata?.decision
 
 const REQUEST_CONFIG = {
   PACKAGE: {
@@ -96,27 +109,40 @@ const REQUEST_CONFIG = {
   },
 }
 
-// ── Detail Modal ───────────────────────────────────────────────
+function Spinner({ light, small }: { light?: boolean; small?: boolean }) {
+  const size = small ? 'w-3 h-3' : 'w-4 h-4'
+  return (
+    <div
+      className={`${size} border-2 rounded-full animate-spin ${
+        light ? 'border-white border-t-transparent' : 'border-black border-t-transparent'
+      }`}
+    />
+  )
+}
+
 function DetailModal({
   request,
   packages,
+  processing,
   onClose,
   onApprove,
   onReject,
 }: {
   request: UserRequest
   packages: PackageInfo[]
+  processing: boolean
   onClose: () => void
   onApprove: (req: UserRequest) => Promise<void>
-  onReject: (req: UserRequest) => Promise<void>
+  onReject: (req: UserRequest, note?: string) => Promise<void>
 }) {
-  const [loading, setLoading] = useState(false)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
 
   const requestType = getRequestType(request.title)
   const cfg = REQUEST_CONFIG[requestType as keyof typeof REQUEST_CONFIG]
+  const pending = isPending(request)
+  const decision = request.metadata?.decision
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -134,16 +160,12 @@ function DetailModal({
   const targetPackage = packages.find(p => p.id === request.metadata?.newPackageId)
 
   const handleApprove = async () => {
-    setLoading(true)
     await onApprove(request)
-    setLoading(false)
     onClose()
   }
 
   const handleReject = async () => {
-    setLoading(true)
-    await onReject(request)
-    setLoading(false)
+    await onReject(request, rejectNote.trim() || undefined)
     onClose()
   }
 
@@ -151,154 +173,263 @@ function DetailModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="bg-[#1A1A1A] px-6 py-5 flex items-start justify-between">
-          <div>
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-2 ${cfg.bg} ${cfg.color}`}>
-              <cfg.icon className="w-3.5 h-3.5" />
-              {cfg.label}
-            </div>
-            <h2 className="text-white font-bold">{request.title}</h2>
-            <p className="text-white/40 text-xs mt-0.5">{timeAgo(request.createdAt)}</p>
-          </div>
+          <ModalHeaderLeft cfg={cfg} request={request} />
           <button onClick={onClose} className="text-white/40 hover:text-white mt-1">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* Info User */}
-          {userInfo && (
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Info Pelanggan</p>
-              <p className="font-bold text-gray-900">{userInfo.fullName}</p>
-              <p className="text-sm text-gray-500 font-mono">{userInfo.customerCode}</p>
-              <p className="text-sm text-gray-500">{userInfo.phone}</p>
-              {userInfo.package && (
-                <p className="text-sm text-[#F5A623] font-medium mt-1">Paket saat ini: {userInfo.package.name}</p>
-              )}
-            </div>
+          {userInfo && <UserInfoBlock userInfo={userInfo} />}
+          <RequestDetailBlock
+            cfg={cfg}
+            requestType={requestType}
+            request={request}
+            targetPackage={targetPackage}
+          />
+          <SystemMessageBlock message={request.message} />
+          {decision === 'REJECTED' && request.metadata?.rejectNote && (
+            <RejectNoteBlock note={request.metadata.rejectNote} />
           )}
-
-          {/* Detail permintaan */}
-          <div className={`rounded-xl p-4 border ${cfg.border} ${cfg.bg}`}>
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'inherit' }}>
-              Detail Permintaan
-            </p>
-            {requestType === 'PACKAGE' && targetPackage && (
-              <div>
-                <p className="text-sm font-medium text-gray-700">Paket yang diminta:</p>
-                <p className="font-bold text-gray-900 mt-1">{targetPackage.name}</p>
-                <p className="text-sm text-gray-500">{targetPackage.speedDown} Mbps — {formatRp(targetPackage.price)}/bulan</p>
-              </div>
-            )}
-            {requestType === 'PACKAGE' && !targetPackage && (
-              <p className="text-sm text-gray-500">ID Paket: {request.metadata?.newPackageId ?? '-'}</p>
-            )}
-            {requestType === 'ADDRESS' && (
-              <div>
-                <p className="text-sm font-medium text-gray-700">Alamat baru:</p>
-                <p className="text-sm text-gray-900 mt-1 leading-relaxed">{request.metadata?.newAddress ?? '-'}</p>
-              </div>
-            )}
-            {requestType === 'CANCEL' && (
-              <div>
-                <p className="text-sm font-medium text-gray-700">Alasan berhenti:</p>
-                <p className="text-sm text-gray-900 mt-1 leading-relaxed italic">"{request.metadata?.reason ?? '-'}"</p>
-              </div>
-            )}
-          </div>
-
-          {/* Pesan lengkap */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Pesan Sistem</p>
-            <p className="text-sm text-gray-600">{request.message}</p>
-          </div>
-
-          {/* Form tolak */}
-          {showRejectForm && (
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
-                Catatan Penolakan (opsional)
-              </label>
-              <textarea
-                value={rejectNote}
-                onChange={e => setRejectNote(e.target.value)}
-                placeholder="Contoh: Area belum tersedia, paket sedang tidak aktif..."
-                className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:border-red-300"
-              />
-            </div>
+          {showRejectForm && pending && (
+            <RejectForm rejectNote={rejectNote} onChange={setRejectNote} />
           )}
         </div>
 
-        {/* Actions */}
-        {!request.isRead ? (
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-            {!showRejectForm ? (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowRejectForm(true)}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-sm font-semibold transition-colors disabled:opacity-50"
-                >
-                  <XCircle className="w-4 h-4" /> Tolak
-                </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#F5A623] text-black hover:bg-[#d98f1b] text-sm font-bold transition-colors disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <><CheckCircle className="w-4 h-4" /> Setujui & Proses</>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowRejectForm(false)}
-                  disabled={loading}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleReject}
-                  disabled={loading}
-                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : 'Konfirmasi Tolak'}
-                </button>
-              </div>
-            )}
-          </div>
+        {pending ? (
+          <ModalActions
+            showRejectForm={showRejectForm}
+            processing={processing}
+            onShowReject={() => setShowRejectForm(true)}
+            onHideReject={() => setShowRejectForm(false)}
+            onApprove={handleApprove}
+            onReject={handleReject}
+          />
         ) : (
-          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 text-center">
-            <p className="text-xs text-gray-400 font-medium">Permintaan ini sudah ditandai selesai diproses</p>
-          </div>
+          <ProcessedFooter decision={decision} />
         )}
       </div>
     </div>
   )
 }
 
-// ── Main Page ──────────────────────────────────────────────────
-export default function PermintaanPage() {
+function ModalHeaderLeft({
+  cfg,
+  request,
+}: {
+  cfg: (typeof REQUEST_CONFIG)[keyof typeof REQUEST_CONFIG]
+  request: UserRequest
+}) {
+  return (
+    <div>
+      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-2 ${cfg.bg} ${cfg.color}`}>
+        <cfg.icon className="w-3.5 h-3.5" />
+        {cfg.label}
+      </div>
+      <h2 className="text-white font-bold">{request.title}</h2>
+      <p className="text-white/40 text-xs mt-0.5">{timeAgo(request.createdAt)}</p>
+    </div>
+  )
+}
+
+function UserInfoBlock({ userInfo }: { userInfo: UserInfo }) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-4">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Info Pelanggan</p>
+      <p className="font-bold text-gray-900">{userInfo.fullName}</p>
+      <p className="text-sm text-gray-500 font-mono">{userInfo.customerCode}</p>
+      <p className="text-sm text-gray-500">{userInfo.phone}</p>
+      {userInfo.package && (
+        <p className="text-sm text-[#F5A623] font-medium mt-1">Paket saat ini: {userInfo.package.name}</p>
+      )}
+    </div>
+  )
+}
+
+function RequestDetailBlock({
+  cfg,
+  requestType,
+  request,
+  targetPackage,
+}: {
+  cfg: (typeof REQUEST_CONFIG)[keyof typeof REQUEST_CONFIG]
+  requestType: string
+  request: UserRequest
+  targetPackage?: PackageInfo
+}) {
+  return (
+    <div className={`rounded-xl p-4 border ${cfg.border} ${cfg.bg}`}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-2">Detail Permintaan</p>
+      {requestType === 'PACKAGE' && targetPackage && (
+        <div>
+          <p className="text-sm font-medium text-gray-700">Paket yang diminta:</p>
+          <p className="font-bold text-gray-900 mt-1">{targetPackage.name}</p>
+          <p className="text-sm text-gray-500">{targetPackage.speedDown} Mbps — {formatRp(targetPackage.price)}/bulan</p>
+        </div>
+      )}
+      {requestType === 'PACKAGE' && !targetPackage && (
+        <p className="text-sm text-gray-500">ID Paket: {request.metadata?.newPackageId ?? '-'}</p>
+      )}
+      {requestType === 'ADDRESS' && (
+        <div>
+          <p className="text-sm font-medium text-gray-700">Alamat baru:</p>
+          <p className="text-sm text-gray-900 mt-1 leading-relaxed">{request.metadata?.newAddress ?? '-'}</p>
+        </div>
+      )}
+      {requestType === 'CANCEL' && (
+        <div>
+          <p className="text-sm font-medium text-gray-700">Alasan berhenti:</p>
+          <p className="text-sm text-gray-900 mt-1 leading-relaxed italic">
+            &quot;{request.metadata?.reason ?? '-'}&quot;
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SystemMessageBlock({ message }: { message: string }) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-4">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Pesan Sistem</p>
+      <p className="text-sm text-gray-600">{message}</p>
+    </div>
+  )
+}
+
+function RejectNoteBlock({ note }: { note: string }) {
+  return (
+    <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-1">Catatan Penolakan</p>
+      <p className="text-sm text-red-700">{note}</p>
+    </div>
+  )
+}
+
+function RejectForm({
+  rejectNote,
+  onChange,
+}: {
+  rejectNote: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+        Catatan Penolakan (opsional)
+      </label>
+      <textarea
+        value={rejectNote}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Contoh: Area belum tersedia, paket sedang tidak aktif..."
+        className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:border-red-300"
+      />
+    </div>
+  )
+}
+
+function ModalActions({
+  showRejectForm,
+  processing,
+  onShowReject,
+  onHideReject,
+  onApprove,
+  onReject,
+}: {
+  showRejectForm: boolean
+  processing: boolean
+  onShowReject: () => void
+  onHideReject: () => void
+  onApprove: () => void
+  onReject: () => void
+}) {
+  return (
+    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+      {!showRejectForm ? (
+        <div className="flex gap-3">
+          <button
+            onClick={onShowReject}
+            disabled={processing}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            <XCircle className="w-4 h-4" /> Tolak
+          </button>
+          <button
+            onClick={onApprove}
+            disabled={processing}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#F5A623] text-black hover:bg-[#d98f1b] text-sm font-bold transition-colors disabled:opacity-50"
+          >
+            {processing ? <Spinner /> : <><CheckCircle className="w-4 h-4" /> Setujui & Proses</>}
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <button
+            onClick={onHideReject}
+            disabled={processing}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={onReject}
+            disabled={processing}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {processing ? <Spinner light /> : 'Konfirmasi Tolak'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+
+
+function ProcessedFooter({ decision }: { decision?: PermintaanDecision }) {
+  return (
+    <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 text-center">
+      <p className="text-xs text-gray-400 font-medium">
+        {decision === 'APPROVED'
+          ? 'Permintaan ini telah disetujui'
+          : decision === 'REJECTED'
+            ? 'Permintaan ini telah ditolak'
+            : 'Permintaan ini sudah ditandai selesai diproses'}
+      </p>
+    </div>
+  )
+}
+
+function PermintaanPageContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [requests, setRequests] = useState<UserRequest[]>([])
   const [packages, setPackages] = useState<PackageInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterType, setFilterType] = useState<string>('')
+  const [processingId, setProcessingId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'unread' | 'read'>('unread')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<UserRequest | null>(null)
 
-  // Stats
-  const totalUnread = requests.filter(r => !r.isRead).length
+  const tabParam = (searchParams.get('tab') ?? '') as TabKey
+  const filterType =
+    tabParam && tabParam in TAB_TO_TYPE
+      ? TAB_TO_TYPE[tabParam as Exclude<TabKey, ''>]
+      : ''
+
+  const setTabFilter = (type: string) => {
+    const entry = Object.entries(TAB_TO_TYPE).find(([, v]) => v === type)
+    const tab = entry?.[0] ?? ''
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab) params.set('tab', tab)
+    else params.delete('tab')
+    const qs = params.toString()
+    router.replace(qs ? `/admin/permintaan?${qs}` : '/admin/permintaan', { scroll: false })
+  }
+
+  const totalUnread = requests.filter(isPending).length
   const packageRequests = requests.filter(r => getRequestType(r.title) === 'PACKAGE').length
   const addressRequests = requests.filter(r => getRequestType(r.title) === 'ADDRESS').length
   const cancelRequests = requests.filter(r => getRequestType(r.title) === 'CANCEL').length
@@ -306,14 +437,12 @@ export default function PermintaanPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      // Ambil notifikasi admin category SYSTEM (request dari user)
       const [notifRes, pkgRes] = await Promise.all([
         api.get('/admin/notifications?category=SYSTEM&limit=100'),
         api.get('/packages?active=false'),
       ])
 
       const allNotifs: UserRequest[] = notifRes.data.notifications ?? []
-      // Filter hanya yang berisi keyword request user
       const userRequests = allNotifs.filter(n =>
         n.title.includes('Ganti Paket') ||
         n.title.includes('Pindah Alamat') ||
@@ -330,73 +459,66 @@ export default function PermintaanPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Approve: terapkan perubahan ke user + mark as read
-  const handleApprove = async (req: UserRequest) => {
-    const requestType = getRequestType(req.title)
-    const userId = req.metadata?.userId
-
-    if (!userId) {
-      toast.error('User ID tidak ditemukan di metadata')
-      return
-    }
-
+  const processRequest = async (
+    req: UserRequest,
+    decision: PermintaanDecision,
+    note?: string,
+  ) => {
+    setProcessingId(req.id)
     try {
-      if (requestType === 'PACKAGE' && req.metadata?.newPackageId) {
-        // Ganti paket user
-        await api.patch(`/users/${userId}`, { packageId: req.metadata.newPackageId })
-        toast.success('Paket berhasil diganti!', {
-          description: 'Paket internet pelanggan sudah diperbarui.'
-        })
-      } else if (requestType === 'ADDRESS' && req.metadata?.newAddress) {
-        // Update alamat user
-        await api.patch(`/users/${userId}`, { address: req.metadata.newAddress })
-        toast.success('Alamat berhasil diperbarui!', {
-          description: 'Alamat pelanggan sudah diubah ke lokasi baru.'
-        })
-      } else if (requestType === 'CANCEL') {
-        // Set status user jadi INACTIVE
-        await api.patch(`/users/${userId}/status`, { status: 'INACTIVE' })
-        toast.success('Berlangganan dihentikan', {
-          description: 'Status pelanggan berhasil diubah ke INACTIVE.'
+      const { data } = await api.post(`/admin/notifications/${req.id}/process`, {
+        decision,
+        ...(note ? { note } : {}),
+      })
+
+      setRequests(prev =>
+        prev.map(r =>
+          r.id === req.id
+            ? {
+                ...r,
+                isRead: true,
+                metadata: {
+                  ...r.metadata,
+                  decision,
+                  ...(note ? { rejectNote: note } : {}),
+                  processedAt: new Date().toISOString(),
+                },
+              }
+            : r,
+        ),
+      )
+
+      if (decision === 'APPROVED') {
+        toast.success(data.message ?? 'Permintaan disetujui', {
+          description: 'Perubahan data pelanggan telah diterapkan.',
         })
       } else {
-        toast.error('Tipe permintaan tidak dikenali atau data tidak lengkap')
-        return
+        toast.success(data.message ?? 'Permintaan ditolak', {
+          description: 'Tidak ada perubahan pada data pelanggan.',
+        })
       }
-
-      // Tandai notifikasi sebagai sudah dibaca (selesai diproses)
-      await api.post(`/admin/notifications/${req.id}/read`)
-
-      // Update state lokal
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, isRead: true } : r))
-    } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Gagal memproses permintaan')
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Gagal memproses permintaan'
+      toast.error(message)
       throw err
+    } finally {
+      setProcessingId(null)
     }
   }
 
-  // Reject: hanya tandai as read tanpa mengubah data user
-  const handleReject = async (req: UserRequest) => {
-    try {
-      await api.post(`/admin/notifications/${req.id}/read`)
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, isRead: true } : r))
-      toast.success('Permintaan ditolak', {
-        description: 'Notifikasi ditandai selesai tanpa perubahan data pelanggan.'
-      })
-    } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Gagal menolak permintaan')
-      throw err
-    }
-  }
+  const handleApprove = (req: UserRequest) => processRequest(req, 'APPROVED')
+  const handleReject = (req: UserRequest, note?: string) => processRequest(req, 'REJECTED', note)
 
-  // Filter tampilan
   const filtered = requests.filter(r => {
     const type = getRequestType(r.title)
     const matchType = !filterType || type === filterType
+    const pending = isPending(r)
     const matchStatus =
       filterStatus === 'all' ||
-      (filterStatus === 'unread' && !r.isRead) ||
-      (filterStatus === 'read' && r.isRead)
+      (filterStatus === 'unread' && pending) ||
+      (filterStatus === 'read' && !pending)
     const matchSearch =
       !search ||
       r.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -407,8 +529,6 @@ export default function PermintaanPage() {
   return (
     <>
       <div className="space-y-5">
-
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: 'Menunggu Diproses', value: totalUnread, color: 'text-[#F5A623]', bg: 'border-[#F5A623]/20' },
@@ -423,10 +543,8 @@ export default function PermintaanPage() {
           ))}
         </div>
 
-        {/* Filter bar */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -437,16 +555,15 @@ export default function PermintaanPage() {
               />
             </div>
 
-            {/* Filter status */}
             <div className="flex gap-2">
               {[
-                { value: 'unread', label: 'Menunggu' },
-                { value: 'read', label: 'Selesai' },
-                { value: 'all', label: 'Semua' },
+                { value: 'unread' as const, label: 'Menunggu' },
+                { value: 'read' as const, label: 'Selesai' },
+                { value: 'all' as const, label: 'Semua' },
               ].map(f => (
                 <button
                   key={f.value}
-                  onClick={() => setFilterStatus(f.value as any)}
+                  onClick={() => setFilterStatus(f.value)}
                   className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${filterStatus === f.value
                     ? 'bg-[#F5A623] text-black'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -462,17 +579,15 @@ export default function PermintaanPage() {
               ))}
             </div>
 
-            {/* Filter tipe */}
-            <div className="flex gap-2">
-              {[
+            <div className="flex gap-2">{[
                 { value: '', label: 'Semua Tipe' },
                 { value: 'PACKAGE', label: 'Ganti Paket' },
                 { value: 'ADDRESS', label: 'Pindah Alamat' },
                 { value: 'CANCEL', label: 'Putus' },
               ].map(f => (
                 <button
-                  key={f.value}
-                  onClick={() => setFilterType(f.value)}
+                  key={f.value || 'all'}
+                  onClick={() => setTabFilter(f.value)}
                   className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${filterType === f.value
                     ? 'bg-gray-800 text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -492,7 +607,6 @@ export default function PermintaanPage() {
           </div>
         </div>
 
-        {/* List permintaan */}
         <div className="space-y-3">
           {loading ? (
             [...Array(4)].map((_, i) => (
@@ -516,96 +630,114 @@ export default function PermintaanPage() {
                 {filterStatus === 'unread' ? 'Semua permintaan sudah diproses' : 'Coba ubah filter'}
               </p>
             </div>
-          ) : filtered.map(req => {
-            const type = getRequestType(req.title)
-            const cfg = REQUEST_CONFIG[type as keyof typeof REQUEST_CONFIG]
+          ) : (
+            filtered.map(req => {
+              const type = getRequestType(req.title)
+              const cfg = REQUEST_CONFIG[type as keyof typeof REQUEST_CONFIG]
+              const pending = isPending(req)
+              const decision = req.metadata?.decision
+              const isProcessing = processingId === req.id
 
-            return (
-              <div
-                key={req.id}
-                className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow ${!req.isRead ? 'border-[#F5A623]/30 bg-[#F5A623]/[0.01]' : 'border-gray-100'
+              return (
+                <div
+                  key={req.id}
+                  className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow ${
+                    pending ? 'border-[#F5A623]/30 bg-[#F5A623]/[0.01]' : 'border-gray-100'
                   }`}
-              >
-                <div className="p-5">
-                  <div className="flex items-start gap-4">
-                    {/* Ikon tipe */}
-                    <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
-                      <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-semibold text-gray-900">{req.title}</h3>
-                        {!req.isRead && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5A623] text-black">
-                            BARU
-                          </span>
-                        )}
-                        {req.isUrgent && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">
-                            URGENT
-                          </span>
-                        )}
-                        {req.isRead && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-600">
-                            SELESAI
-                          </span>
+                >
+                  <div className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
+                        <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className="font-semibold text-gray-900">{req.title}</h3>
+                          {pending && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5A623] text-black">BARU</span>
+                          )}
+                          {req.isUrgent && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">URGENT</span>
+                          )}
+                          {decision === 'APPROVED' && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-600">DISETUJUI</span>
+                          )}
+                          {decision === 'REJECTED' && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">DITOLAK</span>
+                          )}
+                          {!pending && !decision && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">SELESAI</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 truncate">{req.message}</p>
+                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {timeAgo(req.createdAt)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => setSelected(req)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-semibold transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Detail
+                        </button>
+                        {pending && (
+                          <>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await handleReject(req)
+                                } catch { /* toast handled */ }
+                              }}
+                              disabled={isProcessing}
+                              className="px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {isProcessing && <Spinner small />}
+                              Tolak
+                            </button>
+                            <button
+                              onClick={() => setSelected(req)}
+                              disabled={isProcessing}
+                              className="px-3 py-2 rounded-xl bg-[#F5A623] text-black hover:bg-[#d98f1b] text-xs font-bold transition-colors disabled:opacity-50"
+                            >
+                              Proses
+                            </button>
+                          </>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 truncate">{req.message}</p>
-                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {timeAgo(req.createdAt)}
-                      </p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => setSelected(req)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-semibold transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Detail
-                      </button>
-                      {!req.isRead && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await handleReject(req)
-                              } catch { }
-                            }}
-                            className="px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors"
-                          >
-                            Tolak
-                          </button>
-                          <button
-                            onClick={() => setSelected(req)}
-                            className="px-3 py-2 rounded-xl bg-[#F5A623] text-black hover:bg-[#d98f1b] text-xs font-bold transition-colors"
-                          >
-                            Proses
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       </div>
 
-      {/* Detail Modal */}
       {selected && (
         <DetailModal
           request={selected}
           packages={packages}
+          processing={processingId === selected.id}
           onClose={() => setSelected(null)}
           onApprove={handleApprove}
           onReject={handleReject}
         />
       )}
     </>
+  )
+}
+
+export default function PermintaanPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse h-24" />
+        ))}
+      </div>
+    }>
+      <PermintaanPageContent />
+    </Suspense>
   )
 }

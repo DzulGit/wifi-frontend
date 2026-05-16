@@ -94,10 +94,30 @@ const getNotifStyle = (notif: AdminNotif) => {
   return { icon: Info, bg: 'bg-gray-100', color: 'text-gray-500', dot: 'bg-gray-400' }
 }
 
+const isPermintaanPelanggan = (notif: AdminNotif) =>
+  notif.title.includes('Ganti Paket') ||
+  notif.title.includes('Pindah Alamat') ||
+  notif.title.includes('Putus Berlangganan')
+
+const permintaanTabFromNotif = (notif: AdminNotif): string | null => {
+  if (notif.title.includes('Ganti Paket')) return 'ganti_paket'
+  if (notif.title.includes('Pindah Alamat')) return 'pindah_alamat'
+  if (notif.title.includes('Putus Berlangganan')) return 'putus_langganan'
+  const link = notif.link ?? ''
+  const match = link.match(/[?&]tab=([^&]+)/i)
+  return match?.[1] ?? null
+}
+
 /** Arahkan ke halaman list (tanpa ID) berdasarkan kategori / path notifikasi */
 export const resolveListRoute = (notif: AdminNotif): string | null => {
   const raw = (notif.link ?? '').toLowerCase()
   const title = notif.title.toLowerCase()
+
+  // Permintaan pelanggan — prioritas sebelum /pelanggan (link lama mengarah ke detail pelanggan)
+  if (isPermintaanPelanggan(notif) || raw.includes('/permintaan')) {
+    const tab = permintaanTabFromNotif(notif)
+    return tab ? `/admin/permintaan?tab=${tab}` : '/admin/permintaan'
+  }
 
   if (raw.includes('/pembayaran') || title.includes('pembayaran') || notif.category === 'FINANCE')
     return '/admin/pembayaran'
@@ -109,7 +129,7 @@ export const resolveListRoute = (notif: AdminNotif): string | null => {
     return '/admin/pendaftar'
   if (raw.includes('/pelanggan') || title.includes('pelanggan'))
     return '/admin/pelanggan'
-  if (raw.includes('/permintaan') || notif.category === 'SYSTEM')
+  if (notif.category === 'SYSTEM')
     return '/admin/permintaan'
   if (raw.includes('/paket'))
     return '/admin/paket'
