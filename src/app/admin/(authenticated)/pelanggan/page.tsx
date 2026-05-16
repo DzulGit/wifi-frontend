@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import { exportPelanggan } from '@/lib/export'
 import {
@@ -553,6 +552,6 @@ export default function PelangganPage() {
       {/* Modals */}
       {showAddForm && <UserFormModal packages={packages} onClose={() => setShowAddForm(false)} onSuccess={fetchData} />}
       {selectedUser && <DetailPanel user={selectedUser} packages={packages} onClose={() => setSelectedUser(null)} onRefresh={fetchData} />}
-    </AdminLayoutWrapper>
+    )
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   Search, RefreshCw, AlertTriangle, CheckCircle,
@@ -309,6 +308,6 @@ export default function TagihanPage() {
           activeUsers={activeUsers}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }

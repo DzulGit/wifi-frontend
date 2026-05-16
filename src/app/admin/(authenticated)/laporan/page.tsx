@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import { exportLaporanBulanan } from '@/lib/export'
 import { RefreshCw, TrendingUp, Users, CreditCard, FileText, Download } from 'lucide-react'
@@ -139,14 +138,14 @@ export default function LaporanPage() {
 
   if (loading) {
     return (
-      <AdminLayoutWrapper title="Laporan & Analitik">
+      (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
             <p className="text-gray-400 text-sm">Memuat data laporan...</p>
           </div>
         </div>
-      </AdminLayoutWrapper>
+      )
     )
   }
 
@@ -395,6 +394,6 @@ export default function LaporanPage() {
         </div>
 
       </div>
-    </AdminLayoutWrapper>
+    )
   )
 }

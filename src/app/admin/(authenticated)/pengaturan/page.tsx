@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import { Save, RefreshCw, Settings, Edit2, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -233,6 +232,6 @@ export default function PengaturanPage() {
           ))
         )}
       </div>
-    </AdminLayoutWrapper>
+    )
   )
 }

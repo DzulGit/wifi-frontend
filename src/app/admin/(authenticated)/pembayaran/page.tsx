@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   Search, RefreshCw, CheckCircle, XCircle, Eye, X, AlertTriangle
@@ -607,6 +606,6 @@ export default function PembayaranPage() {
           onConfirm={(reason) => handleReject(rejectTarget.id, reason)}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }

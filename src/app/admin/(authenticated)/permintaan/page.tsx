@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   RefreshCw, CheckCircle, XCircle, Package, MapPin,
@@ -610,6 +609,6 @@ export default function PermintaanPage() {
           onReject={handleReject}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }

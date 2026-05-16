@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   Search, RefreshCw, Eye, X, Send, CheckCircle,
@@ -430,6 +429,6 @@ export default function TiketPage() {
           onRefresh={fetchData}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }

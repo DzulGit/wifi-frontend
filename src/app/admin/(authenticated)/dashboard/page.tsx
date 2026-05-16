@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   Users, Wifi, Ban, UserPlus, TrendingUp, AlertTriangle,
@@ -206,21 +205,21 @@ export default function AdminDashboardPage() {
 
   if (loading || !stats) {
     return (
-      <AdminLayoutWrapper title="Dasbor Overview">
+      (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 border-2 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
             <p className="text-gray-400 text-sm">Memuat data dashboard...</p>
           </div>
         </div>
-      </AdminLayoutWrapper>
+      )
     )
   }
 
   const s = stats
 
   return (
-    <AdminLayoutWrapper title="Dasbor Overview">
+    (
       <div className="space-y-6">
 
         {/* ── Alert Strip ─────────────────────────────────── */}
@@ -552,6 +551,6 @@ export default function AdminDashboardPage() {
         </div>
 
       </div>
-    </AdminLayoutWrapper>
+    )
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   CheckCircle, XCircle, Eye, MapPin, Phone,
@@ -475,6 +474,6 @@ export default function PendaftarPage() {
           onReject={(id) => handleReject(id)}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 import api from '@/lib/api'
 import {
   Plus, Edit2, Trash2, Wifi, CheckCircle, X,
@@ -457,6 +456,6 @@ export default function PaketPage() {
           onConfirm={handleDelete}
         />
       )}
-    </AdminLayoutWrapper>
+    )
   )
 }
