@@ -156,7 +156,7 @@ export default function PengaturanPage() {
   })
 
   return (
-    <AdminLayoutWrapper title="Pengaturan Sistem" subtitle="Konfigurasi global aplikasi CAKRANA WiFi">
+    (
       <div className="space-y-5">
 
         {/* Header */}

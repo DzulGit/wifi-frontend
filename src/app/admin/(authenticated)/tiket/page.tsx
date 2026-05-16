@@ -256,7 +256,7 @@ export default function TiketPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   return (
-    <AdminLayoutWrapper title="Helpdesk & Tiket" subtitle="Tangani laporan dan pertanyaan pelanggan">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -429,6 +429,6 @@ export default function TiketPage() {
           onRefresh={fetchData}
         />
       )}
-    )
+    </>
   )
 }

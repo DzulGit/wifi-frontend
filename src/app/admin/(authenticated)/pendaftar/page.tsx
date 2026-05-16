@@ -267,7 +267,7 @@ export default function PendaftarPage() {
   const LIMIT = 10
 
   return (
-    <AdminLayoutWrapper title="Pendaftar Baru" subtitle="Kelola pendaftaran pelanggan baru dari landing page">
+    <>
       <div className="space-y-5">
 
         {/* Stats cards */}
@@ -474,6 +474,6 @@ export default function PendaftarPage() {
           onReject={(id) => handleReject(id)}
         />
       )}
-    )
+    </>
   )
 }

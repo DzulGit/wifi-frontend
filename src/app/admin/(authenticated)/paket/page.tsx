@@ -271,7 +271,7 @@ export default function PaketPage() {
   const popular = packages.filter(p => p.isPopular).length
 
   return (
-    <AdminLayoutWrapper title="Manajemen Paket" subtitle="Kelola paket layanan internet CAKRANA">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -456,6 +456,6 @@ export default function PaketPage() {
           onConfirm={handleDelete}
         />
       )}
-    )
+    </>
   )
 }

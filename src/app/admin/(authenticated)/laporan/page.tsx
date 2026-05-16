@@ -150,7 +150,7 @@ export default function LaporanPage() {
   }
 
   return (
-    <AdminLayoutWrapper title="Laporan & Analitik" subtitle="Ringkasan performa sistem CAKRANA WiFi">
+    (
       <div className="space-y-5">
 
         {/* Header bar */}

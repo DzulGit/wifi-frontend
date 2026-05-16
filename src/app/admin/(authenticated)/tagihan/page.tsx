@@ -177,7 +177,7 @@ export default function TagihanPage() {
   }
 
   return (
-    <AdminLayoutWrapper title="Manajemen Tagihan" subtitle="Kelola tagihan bulanan pelanggan">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -308,6 +308,6 @@ export default function TagihanPage() {
           activeUsers={activeUsers}
         />
       )}
-    )
+    </>
   )
 }

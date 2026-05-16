@@ -394,7 +394,7 @@ export default function PembayaranPage() {
   }
 
   return (
-    <AdminLayoutWrapper title="Manajemen Pembayaran" subtitle="Validasi pembayaran tagihan pelanggan">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -606,6 +606,6 @@ export default function PembayaranPage() {
           onConfirm={(reason) => handleReject(rejectTarget.id, reason)}
         />
       )}
-    )
+    </>
   )
 }

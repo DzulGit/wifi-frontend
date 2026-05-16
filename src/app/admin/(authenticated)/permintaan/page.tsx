@@ -405,7 +405,7 @@ export default function PermintaanPage() {
   })
 
   return (
-    <AdminLayoutWrapper title="Permintaan Pelanggan" subtitle="Kelola permohonan ganti paket, pindah alamat, dan putus berlangganan">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -447,11 +447,10 @@ export default function PermintaanPage() {
                 <button
                   key={f.value}
                   onClick={() => setFilterStatus(f.value as any)}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                    filterStatus === f.value
-                      ? 'bg-[#F5A623] text-black'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${filterStatus === f.value
+                    ? 'bg-[#F5A623] text-black'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
                 >
                   {f.label}
                   {f.value === 'unread' && totalUnread > 0 && (
@@ -474,11 +473,10 @@ export default function PermintaanPage() {
                 <button
                   key={f.value}
                   onClick={() => setFilterType(f.value)}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                    filterType === f.value
-                      ? 'bg-gray-800 text-white'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${filterType === f.value
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -525,9 +523,8 @@ export default function PermintaanPage() {
             return (
               <div
                 key={req.id}
-                className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow ${
-                  !req.isRead ? 'border-[#F5A623]/30 bg-[#F5A623]/[0.01]' : 'border-gray-100'
-                }`}
+                className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow ${!req.isRead ? 'border-[#F5A623]/30 bg-[#F5A623]/[0.01]' : 'border-gray-100'
+                  }`}
               >
                 <div className="p-5">
                   <div className="flex items-start gap-4">
@@ -576,7 +573,7 @@ export default function PermintaanPage() {
                             onClick={async () => {
                               try {
                                 await handleReject(req)
-                              } catch {}
+                              } catch { }
                             }}
                             className="px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors"
                           >
@@ -609,6 +606,6 @@ export default function PermintaanPage() {
           onReject={handleReject}
         />
       )}
-    )
+    </>
   )
 }

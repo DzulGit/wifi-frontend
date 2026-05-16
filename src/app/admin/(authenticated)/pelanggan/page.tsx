@@ -396,7 +396,7 @@ export default function PelangganPage() {
 
 
   return (
-    <AdminLayoutWrapper title="Manajemen Pelanggan" subtitle="Kelola seluruh data pelanggan WiFi">
+    <>
       <div className="space-y-5">
 
         {/* Stats */}
@@ -552,6 +552,6 @@ export default function PelangganPage() {
       {/* Modals */}
       {showAddForm && <UserFormModal packages={packages} onClose={() => setShowAddForm(false)} onSuccess={fetchData} />}
       {selectedUser && <DetailPanel user={selectedUser} packages={packages} onClose={() => setSelectedUser(null)} onRefresh={fetchData} />}
-    )
+    </>
   )
 }
