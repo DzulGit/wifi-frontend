@@ -15,6 +15,7 @@ import {
   LogOut,
   X,
   ClipboardList,
+  Activity,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 
@@ -46,6 +47,7 @@ export default function AdminSidebar({
     { name: 'Tagihan', href: '/admin/tagihan', icon: Receipt },
     { name: 'Pembayaran', href: '/admin/pembayaran', icon: CreditCard, badge: paymentCount },
     { name: 'Permintaan', href: '/admin/permintaan', icon: ClipboardList, badge: requestCount },
+    { name: 'Aktivitas', href: '/admin/logs', icon: Activity },
     { name: 'Laporan', href: '/admin/laporan', icon: FileText },
     { name: 'Tiket Bantuan', href: '/admin/tiket', icon: Ticket, badge: ticketCount },
     { name: 'Pengaturan', href: '/admin/pengaturan', icon: Settings },

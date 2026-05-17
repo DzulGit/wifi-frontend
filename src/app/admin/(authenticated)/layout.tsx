@@ -37,6 +37,10 @@ const PAGE_HEADERS: Record<string, { title: string; subtitle?: string }> = {
     title: 'Permintaan Pelanggan',
     subtitle: 'Kelola permohonan ganti paket, pindah alamat, dan putus berlangganan',
   },
+  '/admin/logs': {
+    title: 'System Logs',
+    subtitle: 'Pantau aktivitas API secara real-time',
+  },
   '/admin/laporan': {
     title: 'Laporan & Analitik',
     subtitle: 'Ringkasan performa sistem CAKRANA WiFi',
