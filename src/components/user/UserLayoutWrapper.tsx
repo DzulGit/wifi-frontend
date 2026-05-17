@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
-import Sidebar from './Sidebar'; // Sesuaikan path import jika berbeda
-import Header from './Header';   // Sesuaikan path import jika berbeda
+import Sidebar from './Sidebar';
+import Header from './Header';
+import FAQChatWidget from '@/components/user/FAQChatWidget';
 
 export default function UserLayoutWrapper({
   children,
@@ -27,7 +28,7 @@ export default function UserLayoutWrapper({
     setIsMounted(true);
   }, []);
 
-  // ── FETCH UNREAD NOTIFICATIONS ──
+  // ── Fetch unread notifications ─────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     
@@ -37,21 +38,21 @@ export default function UserLayoutWrapper({
         const notifs = data?.data || data || [];
         const unread = notifs.filter((n: any) => !n.isRead).length;
         setUnreadCount(unread);
-      } catch (error) {
-        console.error("Gagal get notif header");
+      } catch {
+        // silent
       }
     };
 
     fetchUnread();
   }, [isAuthenticated, user?.id, pathname]);
 
-  // ── LOGOUT LOGIC ──
+  // ── Logout ─────────────────────────────────────────────────────
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
-  // ── GUARD LOGIC ──
+  // ── Auth guard ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isMounted || !_hasHydrated) return;
 
@@ -61,7 +62,7 @@ export default function UserLayoutWrapper({
       try {
         const parsed = JSON.parse(authStorage);
         hasLocalToken = !!parsed?.state?.token;
-      } catch (e) { hasLocalToken = false; }
+      } catch { hasLocalToken = false; }
     }
 
     if (!isAuthenticated && !hasLocalToken) {
@@ -75,11 +76,11 @@ export default function UserLayoutWrapper({
     }
   }, [isMounted, _hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // ── LOADING STATE ──
+  // ── Loading ────────────────────────────────────────────────────
   if (!isMounted || !_hasHydrated || (!isAuthenticated && typeof window !== 'undefined' && localStorage.getItem('cakrana-auth'))) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#F5A623] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -111,6 +112,9 @@ export default function UserLayoutWrapper({
           {children}
         </main>
       </div>
+
+      {/* AI FAQ Widget — muncul di semua halaman dashboard user */}
+      <FAQChatWidget />
     </div>
   );
 }
