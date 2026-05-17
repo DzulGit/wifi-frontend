@@ -20,7 +20,7 @@ gcloud run deploy wifi-frontend \
   --region=$REGION \
   --port=3000 \
   --allow-unauthenticated \
-  --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL,NODE_ENV=production,GEMINI_API_KEY=$GEMINI_API_KEY" \
+  --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL,NODE_ENV=production" \
   --memory=512Mi \
   --cpu=1 \
   --min-instances=0 \
