@@ -100,63 +100,88 @@ interface ChatMessage {
 
 // ── POST handler ───────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  // 1. Validasi API key tersedia di environment
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    console.error('[FAQ API] GEMINI_API_KEY tidak ditemukan di environment variables')
-    return NextResponse.json(
-      { error: 'Layanan AI sementara tidak tersedia. Silakan hubungi CS kami.' },
-      { status: 503 }
-    )
-  }
-
-  // 2. Parse request body
-  let body: { question?: string; history?: ChatMessage[] }
+  // Bungkus seluruh handler agar semua error tertangani dan selalu mengembalikan JSON
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 })
-  }
+    // 1. Validasi API key tersedia di environment (runtime)
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
+      console.error('[FAQ API] GEMINI_API_KEY tidak ditemukan di runtime environment')
+      return NextResponse.json(
+        { error: 'Layanan AI sementara tidak tersedia. Silakan hubungi CS kami.' },
+        { status: 503 }
+      )
+    }
 
-  const { question, history = [] } = body
+    // 2. Parse request body
+    let body: { question?: string; history?: ChatMessage[] }
+    try {
+      body = await req.json()
+    } catch (err) {
+      return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 })
+    }
 
-  // 3. Validasi input question
-  if (!question || typeof question !== 'string') {
-    return NextResponse.json({ error: 'Pertanyaan tidak boleh kosong.' }, { status: 400 })
-  }
+    const { question, history = [] } = body
 
-  const trimmed = question.trim()
-  if (trimmed.length === 0) {
-    return NextResponse.json({ error: 'Pertanyaan tidak boleh kosong.' }, { status: 400 })
-  }
+    // 3. Validasi input question
+    if (!question || typeof question !== 'string') {
+      return NextResponse.json({ error: 'Pertanyaan tidak boleh kosong.' }, { status: 400 })
+    }
 
-  if (trimmed.length > MAX_QUESTION_LENGTH) {
-    return NextResponse.json(
-      { error: `Pertanyaan terlalu panjang. Maksimal ${MAX_QUESTION_LENGTH} karakter.` },
-      { status: 400 }
-    )
-  }
+    const trimmed = question.trim()
+    if (trimmed.length === 0) {
+      return NextResponse.json({ error: 'Pertanyaan tidak boleh kosong.' }, { status: 400 })
+    }
 
-  // 4. Batasi history yang dikirim ke model (hemat token)
-  const safeHistory: ChatMessage[] = Array.isArray(history)
-    ? history.slice(-MAX_HISTORY_TURNS * 2).map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: String(msg.parts?.[0]?.text ?? '') }],
-      }))
-    : []
+    if (trimmed.length > MAX_QUESTION_LENGTH) {
+      return NextResponse.json(
+        { error: `Pertanyaan terlalu panjang. Maksimal ${MAX_QUESTION_LENGTH} karakter.` },
+        { status: 400 }
+      )
+    }
 
-  // 5. Inisialisasi Gemini
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey)
+    // 4. Batasi history yang dikirim ke model (hemat token)
+    const safeHistory: ChatMessage[] = Array.isArray(history)
+      ? history.slice(-MAX_HISTORY_TURNS * 2).map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: String(msg.parts?.[0]?.text ?? '') }],
+        }))
+      : []
+
+    // 5. Inisialisasi Gemini -- dukung kedua pola konstruktor (object param atau string)
+    let genAI: any
+    try {
+      // prefer object-style constructor if available in installed SDK
+      genAI = new GoogleGenerativeAI('{ apiKey }')
+    } catch (err1) {
+      try {
+        // fallback to older constructor signature that accepts a bare apiKey
+        genAI = new GoogleGenerativeAI(apiKey as unknown as string)
+      } catch (err2) {
+        console.error('[FAQ API] Gagal inisialisasi @google/generative-ai SDK', err1, err2)
+        return NextResponse.json(
+          { error: 'Konfigurasi layanan AI bermasalah. Hubungi tim kami.' },
+          { status: 503 }
+        )
+      }
+    }
+
+    // kompatibilitas metode: pastikan method yang kita pakai ada
+    if (!genAI || typeof genAI.getGenerativeModel !== 'function') {
+      console.error('[FAQ API] SDK @google/generative-ai tidak kompatibel (missing getGenerativeModel)')
+      return NextResponse.json(
+        { error: 'Layanan AI tidak tersedia (SDK incompatible).' },
+        { status: 503 }
+      )
+    }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',        // gratis, cepat, cukup pintar
+      model: 'gemini-1.5-flash',
       systemInstruction: CAKRANA_SYSTEM_PROMPT,
       generationConfig: {
-        temperature: 0.4,               // lebih konsisten, tidak terlalu kreatif
+        temperature: 0.4,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 1024,          // cukup untuk jawaban FAQ
+        maxOutputTokens: 1024,
       },
       safetySettings: [
         {
@@ -184,7 +209,7 @@ export async function POST(req: NextRequest) {
     // 7. Kirim pesan user
     const result = await chat.sendMessage(trimmed)
     const response = await result.response
-    const text = response.text()
+    const text = typeof response?.text === 'function' ? response.text() : String(response?.content ?? '')
 
     if (!text) {
       return NextResponse.json(
@@ -196,9 +221,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ answer: text }, { status: 200 })
 
   } catch (error: any) {
-    console.error('[FAQ API] Gemini error:', error?.message ?? error)
+    console.error('[FAQ API] Unexpected error:', error?.message ?? error)
 
-    // Handle rate limit
+    // Map known SDK/HTTP errors to JSON responses
     if (error?.status === 429) {
       return NextResponse.json(
         { error: 'Terlalu banyak permintaan. Mohon tunggu sebentar lalu coba lagi.' },
@@ -206,8 +231,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Handle API key invalid
-    if (error?.status === 400 && error?.message?.includes('API key')) {
+    if (error?.status === 400 && typeof error?.message === 'string' && error.message.toLowerCase().includes('api key')) {
       return NextResponse.json(
         { error: 'Konfigurasi layanan AI bermasalah. Hubungi tim kami.' },
         { status: 503 }
