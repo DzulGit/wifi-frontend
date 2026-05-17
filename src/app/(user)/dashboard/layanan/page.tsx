@@ -15,6 +15,7 @@ export default function LayananAkunPage() {
   
   // State untuk Lock System (Anti-Spam)
   const [activeRequest, setActiveRequest] = useState<any>(null);
+  const [lastRequest, setLastRequest] = useState<any>(null);
   const [isLoadingLock, setIsLoadingLock] = useState(true);
 
   // State untuk Modal & Form
@@ -38,6 +39,9 @@ export default function LayananAkunPage() {
           if (resActive.data.hasActiveRequest) {
             setActiveRequest(resActive.data.request);
           }
+          if (resActive.data.lastRequest) {
+            setLastRequest(resActive.data.lastRequest);
+          }   
         }
       } catch (error) {
         console.error('Gagal mengambil data', error);
@@ -132,6 +136,30 @@ export default function LayananAkunPage() {
   return (
     <UserLayoutWrapper title="Layanan & Akun">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* BANNER JIKA PENGAJUAN TERAKHIR DITOLAK */}
+        {lastRequest?.status === 'REJECTED' && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-5 mb-6 flex items-start gap-4">
+            <div className="p-2 bg-red-500/20 rounded-lg">
+              <XOctagon className="w-6 h-6 text-red-500" />
+            </div>
+            <div>
+              <h3 className="text-red-500 font-bold text-lg mb-1">
+                Pengajuan Sebelumnya Ditolak
+              </h3>
+              <p className="text-white/70 text-sm leading-relaxed">
+                Mohon maaf, permohonan <strong>{
+                  lastRequest.type === 'PACKAGE_CHANGE' ? 'Ganti Paket' : 
+                  lastRequest.type === 'ADDRESS_MOVE' ? 'Pindah Alamat' : 
+                  'Putus Langganan'
+                }</strong> Anda tidak dapat kami proses.
+                <br />
+                <span className="inline-block mt-2 text-red-400">
+                  <strong>Catatan Admin:</strong> "{lastRequest.adminNotes || 'Tidak ada alasan spesifik yang diberikan.'}"
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
         <div>
           <h1 className="text-2xl font-bold text-white">Layanan & Akun</h1>
           <p className="text-white/50 text-sm mt-1">
