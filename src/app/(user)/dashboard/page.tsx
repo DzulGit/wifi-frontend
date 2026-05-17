@@ -33,7 +33,7 @@ export default function DashboardPage() {
       try {
         setIsLoading(true);
         const apiCalls = [
-          api.get('/notification').catch(() => null),
+          api.get('/notifications').catch(() => null),
           api.get('/billing', { params: { userId: user.id } }).catch(() => null),
           api.get('/tickets', { params: { userId: user.id } }).catch(() => null),
         ];
