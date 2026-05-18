@@ -72,7 +72,7 @@ const formatRp = (n: number) =>
 const getRequestType = (title: string) => {
   if (title.includes('Ganti Paket')) return 'PACKAGE'
   if (title.includes('Pindah Alamat')) return 'ADDRESS'
-  if (title.includes('Putus Berlangganan')) return 'CANCEL'
+  if (title.includes('Putus Langganan')) return 'CANCEL'
   return 'UNKNOWN'
 }
 
