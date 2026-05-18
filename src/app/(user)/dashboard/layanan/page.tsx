@@ -311,9 +311,34 @@ export default function LayananAkunPage() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // TAMPILAN 4 — NORMAL (Tidak ada pengajuan aktif / sudah dikonfirmasi)
-  // ══════════════════════════════════════════════════════════════════════════
+  // TAMPILAN BARU: JIKA PUTUS LANGGANAN SUDAH DI-ACC & USER SUDAH KLIK OK
+  // (Mencegah user masuk ke form normal lagi karena layanannya sudah berhenti)
+  if (lastRequest?.type === 'CANCELLATION' && lastRequest?.status === 'APPROVED' && hasConfirmedLastRequest) {
+    return (
+      <UserLayoutWrapper title="Layanan Dinonaktifkan">
+        <div className="max-w-2xl mx-auto mt-10">
+          <div className="bg-[#1A1A1A] border border-red-500/20 rounded-[2rem] p-10 text-center flex flex-col items-center shadow-[0_0_30px_rgba(239,68,68,0.03)]">
+            <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+              <AlertTriangle className="w-12 h-12 text-red-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Layanan Internet Berhenti</h2>
+            <p className="text-white/60 mb-6 max-w-md leading-relaxed">
+              Status langganan WiFi Anda telah **Nonaktif** sesuai dengan permintaan pemutusan yang telah disetujui oleh Admin.
+            </p>
+            <div className="bg-white/5 border border-white/5 rounded-2xl p-5 text-sm text-white/50 text-left max-w-md space-y-2">
+              <p>⚠️ <strong>Informasi Masa Tenggang:</strong></p>
+              <p>• Akun Anda akan memasuki status <strong>SUSPENDED</strong> otomatis dalam waktu 3 bulan jika tidak ada re-aktivasi.</p>
+              <p>• Data akun Anda akan <strong>DIHAPUS PERMANEN</strong> dari sistem setelah 6 bulan.</p>
+            </div>
+          </div>
+        </div>
+      </UserLayoutWrapper>
+    );
+  }
+
+  // =================================================================
+  // TAMPILAN 5: NORMAL (Hanya untuk user aktif / request biasa)
+  // =================================================================
   return (
     <UserLayoutWrapper title="Layanan & Akun">
       <div className="max-w-4xl mx-auto space-y-6">
