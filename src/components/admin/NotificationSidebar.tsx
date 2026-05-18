@@ -102,7 +102,7 @@ const isPermintaanPelanggan = (notif: AdminNotif) =>
 const permintaanTabFromNotif = (notif: AdminNotif): string | null => {
   if (notif.title.includes('Ganti Paket')) return 'ganti_paket'
   if (notif.title.includes('Pindah Alamat')) return 'pindah_alamat'
-  if (notif.title.includes('Putus Langganan')) return 'putus_langganan'
+  if (notif.title.includes('Putus Berlangganan')) return 'putus_langganan'
   const link = notif.link ?? ''
   const match = link.match(/[?&]tab=([^&]+)/i)
   return match?.[1] ?? null
