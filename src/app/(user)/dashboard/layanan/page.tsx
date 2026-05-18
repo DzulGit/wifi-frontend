@@ -151,7 +151,9 @@ export default function LayananAkunPage() {
       }
 
       closeModal();
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       toast.error(err.response?.data?.message ?? 'Gagal mengirim permintaan');
