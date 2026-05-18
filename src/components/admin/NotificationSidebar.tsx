@@ -97,7 +97,8 @@ const getNotifStyle = (notif: AdminNotif) => {
 const isPermintaanPelanggan = (notif: AdminNotif) =>
   notif.title.includes('Ganti Paket') ||
   notif.title.includes('Pindah Alamat') ||
-  notif.title.includes('Putus Berlangganan')
+  notif.title.includes('Putus Berlangganan') ||
+  notif.title.includes('Putus Langganan')
 
 const permintaanTabFromNotif = (notif: AdminNotif): string | null => {
   if (notif.title.includes('Ganti Paket')) return 'ganti_paket'
