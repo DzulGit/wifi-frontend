@@ -12,12 +12,12 @@ import {
   Clock,
   CheckCircle2,
   Ban,
-  Wifi, // 👈 Tambahan icon
+  Wifi,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth.store';
-import { useRouter } from 'next/navigation'; // 👈 Tambahan router
+import { useRouter } from 'next/navigation';
 
 interface ServiceRequest {
   id: string;
@@ -44,7 +44,7 @@ const getLabel = (type?: ServiceRequest['type']) =>
 
 export default function LayananAkunPage() {
   const { user } = useAuthStore();
-  const router = useRouter(); // 👈 Inisialisasi router
+  const router = useRouter();
 
   const [packages, setPackages] = useState<{ id: string; name: string; price: number }[]>([]);
   const [activeRequest, setActiveRequest] = useState<ServiceRequest | null>(null);
@@ -55,10 +55,14 @@ export default function LayananAkunPage() {
   const [activeModal, setActiveModal] = useState<'package' | 'move' | 'cancel' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newPackageId, setNewPackageId] = useState('');
+  
+  // 👇 STATE ALAMAT DISESUAIKAN DENGAN FORM PENDAFTARAN
+  const [newCity, setNewCity] = useState('');
+  const [newDistrict, setNewDistrict] = useState('');
   const [newAddress, setNewAddress] = useState('');
+  
   const [reason, setReason] = useState('');
 
-  // 👇 STATE BARU KHUSUS UNTUK FORM RESUBSCRIBE
   const [selectedResubscribePackage, setSelectedResubscribePackage] = useState('');
   const [isResubscribing, setIsResubscribing] = useState(false);
 
@@ -70,7 +74,6 @@ export default function LayananAkunPage() {
         const resPackages = await api.get('/packages');
         setPackages(resPackages.data.data ?? resPackages.data);
 
-        // 👇 Sedikit penyesuaian: Kalau user udah disuspend, nggak perlu ngecek antrean admin lagi
         if (user.status !== 'SUSPENDED') {
           const resActive = await api.get<ActiveRequestResponse>('/service-requests/active');
           const { hasActiveRequest, request, lastRequest: lr } = resActive.data;
@@ -92,7 +95,7 @@ export default function LayananAkunPage() {
         }
       } catch (error) {
         console.error('Gagal mengambil data', error);
-      } finally { // 👈 Benerin penulisan finally bawaan lu
+      } relative {
         setIsLoadingLock(false);
       }
     };
@@ -111,6 +114,8 @@ export default function LayananAkunPage() {
     setActiveModal(null);
     setNewPackageId('');
     setNewAddress('');
+    setNewCity('');
+    setNewDistrict('');
     setReason('');
   };
 
@@ -124,7 +129,9 @@ export default function LayananAkunPage() {
         await api.post('/service-requests', { type: 'PACKAGE_CHANGE', requestData: { newPackageId } });
         toast.success('Permintaan Ganti Paket berhasil dikirim ke Admin!');
       } else if (activeModal === 'move') {
-        await api.post('/service-requests', { type: 'ADDRESS_MOVE', requestData: { newAddress } });
+        // 👇 GABUNGKAN ALAMAT BIAR FORMATNYA KONSISTEN SEBELUM MASUK BACKEND
+        const fullAddress = `${newAddress.trim()}, Kec. ${newDistrict.trim()}, ${newCity.trim()}`;
+        await api.post('/service-requests', { type: 'ADDRESS_MOVE', requestData: { newAddress: fullAddress } });
         toast.success('Permintaan Pindah Alamat berhasil dikirim ke Admin!');
       } else if (activeModal === 'cancel') {
         await api.post('/service-requests', { type: 'CANCELLATION', requestData: { reason } });
@@ -143,7 +150,6 @@ export default function LayananAkunPage() {
     }
   };
 
-  // 👇 FUNGSI BARU KHUSUS SUBMIT AKTIVASI ULANG (RESUBSCRIBE)
   const handleResubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedResubscribePackage) return toast.error('Pilih paket terlebih dahulu');
@@ -153,10 +159,8 @@ export default function LayananAkunPage() {
       const res = await api.post(`/users/${user?.id}/resubscribe`, { packageId: selectedResubscribePackage });
       toast.success(res.data.message || 'Berhasil mengajukan aktivasi ulang!');
 
-      // Update state user lokal agar statusnya berubah jadi PENDING
       useAuthStore.setState({ user: res.data.user });
       
-      // Lempar ke dashboard utama
       setTimeout(() => {
         router.push('/dashboard');
       }, 1500);
@@ -178,8 +182,7 @@ export default function LayananAkunPage() {
     );
   }
 
-  // 👇 TAMPILAN 4 — LOCKED SCREEN KHUSUS USER SUSPENDED (FORM RESUBSCRIBE)
-  // (Menggantikan Tampilan 4 sebelumnya agar nyambung dengan status SUSPENDED)
+  // TAMPILAN 4 — LOCKED SCREEN KHUSUS USER SUSPENDED (FORM RESUBSCRIBE)
   if (user?.status === 'SUSPENDED') {
     return (
       <UserLayoutWrapper title="Berlangganan Kembali">
@@ -222,7 +225,7 @@ export default function LayananAkunPage() {
     );
   }
 
-  // TAMPILAN 2A — INTERSTITIAL: APPROVED (Hijau)
+  // TAMPILAN 2A — INTERSTITIAL: APPROVED
   if (lastRequest?.status === 'APPROVED' && !hasConfirmedLastRequest) {
     return (
       <UserLayoutWrapper title="Layanan & Akun">
@@ -244,7 +247,7 @@ export default function LayananAkunPage() {
     );
   }
 
-  // TAMPILAN 2B — INTERSTITIAL: REJECTED (Merah)
+  // TAMPILAN 2B — INTERSTITIAL: REJECTED
   if (lastRequest?.status === 'REJECTED' && !hasConfirmedLastRequest) {
     return (
       <UserLayoutWrapper title="Layanan & Akun">
@@ -361,10 +364,42 @@ export default function LayananAkunPage() {
                 </div>
               )}
 
+              {/* 👇 UPDATE: MODAL PINDAH LOKASI DISESUAIKAN DENGAN FORM REGISTRASI AWAL */}
               {activeModal === 'move' && (
-                <div>
-                  <label className="text-sm text-white/50 mb-2 block">Alamat Baru Lengkap</label>
-                  <textarea required rows={4} placeholder="Masukkan nama jalan..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-[#F5A623] resize-none" />
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-white/50 mb-2 block font-medium">Kota / Kabupaten</label>
+                    <input 
+                      required 
+                      type="text"
+                      placeholder="Contoh: Kota Semarang" 
+                      value={newCity} 
+                      onChange={(e) => setNewCity(e.target.value)} 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-[#F5A623] transition-colors placeholder:text-gray-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-white/50 mb-2 block font-medium">Kecamatan</label>
+                    <input 
+                      required 
+                      type="text"
+                      placeholder="Contoh: Pedurungan" 
+                      value={newDistrict} 
+                      onChange={(e) => setNewDistrict(e.target.value)} 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-[#F5A623] transition-colors placeholder:text-gray-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-white/50 mb-2 block font-medium">Alamat Lengkap (Nama Jalan, No. Rumah, RT/RW)</label>
+                    <textarea 
+                      required 
+                      rows={3} 
+                      placeholder="Contoh: Jl. Majapahit No. 123, RT 02/RW 04" 
+                      value={newAddress} 
+                      onChange={(e) => setNewAddress(e.target.value)} 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-[#F5A623] resize-none transition-colors placeholder:text-gray-600" 
+                    />
+                  </div>
                 </div>
               )}
 
