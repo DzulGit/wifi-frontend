@@ -95,7 +95,7 @@ export default function LayananAkunPage() {
         }
       } catch (error) {
         console.error('Gagal mengambil data', error);
-      } relative {
+      } finally {
         setIsLoadingLock(false);
       }
     };
