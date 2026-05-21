@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import FAQChatWidget from '@/components/user/FAQChatWidget';
-import { Ban, CreditCard, Package, LogOut } from 'lucide-react';
+import { Ban, CreditCard, Package, LogOut, Clock, MessageCircle } from 'lucide-react'; // 👈 Tambahan icon Clock & Message
 
 export default function UserLayoutWrapper({
   children,
@@ -20,8 +20,8 @@ export default function UserLayoutWrapper({
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   
-  // State tambahan untuk mendeteksi alasan suspend
-  const [suspensionType, setSuspensionType] = useState<'CANCELLATION' | 'BILLING' | null>(null);
+  // 👇 Tambahan State: WAITING_ACTIVATION
+  const [suspensionType, setSuspensionType] = useState<'CANCELLATION' | 'BILLING' | 'WAITING_ACTIVATION' | null>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const pathname = usePathname();
@@ -29,11 +29,13 @@ export default function UserLayoutWrapper({
   
   const { user, logout, isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
 
+  // (Nomor WA Admin - Ganti dengan nomor asli lu)
+  const ADMIN_WA_NUMBER = '6285883934965'; 
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // ── Fetch unread notifications ─────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     
@@ -51,24 +53,36 @@ export default function UserLayoutWrapper({
     fetchUnread();
   }, [isAuthenticated, user?.id, pathname]);
 
-  // ── Deteksi Alasan Suspend Jika User Berstatus SUSPENDED ────────
+  // ── Deteksi Alasan Suspend (Mengecek History Request & Tagihan) ────────
   useEffect(() => {
     if (!isAuthenticated || user?.status !== 'SUSPENDED') return;
 
     const checkSuspensionReason = async () => {
       setIsCheckingStatus(true);
       try {
-        // Cek request terakhir untuk mendeteksi apakah suspend karena putus langganan
-        const res = await api.get('/service-requests/active');
-        const { lastRequest } = res.data;
+        // Tarik data request terakhir DAN data tagihan secara bersamaan (limit 100 biar narik semua)
+        const [resReq, resBills] = await Promise.all([
+          api.get('/service-requests/active').catch(() => ({ data: {} })),
+          api.get('/billing?limit=100').catch(() => ({ data: { data: [] } }))
+        ]);
 
-        if (lastRequest?.type === 'CANCELLATION' && lastRequest?.status === 'APPROVED') {
+        const { lastRequest } = resReq.data;
+        const bills = resBills.data?.data || [];
+        
+        // Cek apakah ada tagihan yang belum dibayar / nunggak
+        const hasUnpaidBills = bills.some((b: any) => b.status === 'UNPAID' || b.status === 'OVERDUE');
+
+        if (hasUnpaidBills) {
+          // Kondisi 1: Punya tagihan -> Lempar ke halaman bayar
+          setSuspensionType('BILLING');
+        } else if (lastRequest?.type === 'CANCELLATION' && lastRequest?.status === 'APPROVED') {
+          // Kondisi 2: Gak ada tagihan TAPI last requestnya putus langganan -> Lempar ke Pilih Paket
           setSuspensionType('CANCELLATION');
         } else {
-          setSuspensionType('BILLING');
+          // Kondisi 3: Gak ada tagihan & bukan putus langganan -> Tinggal nunggu Admin aktifin
+          setSuspensionType('WAITING_ACTIVATION');
         }
       } catch (error) {
-        // Jika error, fallback aman ke isolasi tagihan/billing
         setSuspensionType('BILLING');
       } finally {
         setIsCheckingStatus(false);
@@ -78,7 +92,6 @@ export default function UserLayoutWrapper({
     checkSuspensionReason();
   }, [isAuthenticated, user?.status]);
 
-  // ── Logout Handler ─────────────────────────────────────────────
   const handleLogout = () => {
     logout();
     router.push('/login');
@@ -93,7 +106,6 @@ export default function UserLayoutWrapper({
     }
   }, [isMounted, _hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // ── Loading Screen ─────────────────────────────────────────────
   if (!isMounted || !_hasHydrated || (!isAuthenticated && typeof window !== 'undefined' && localStorage.getItem('cakrana-auth'))) {
     return (
       <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
@@ -114,7 +126,7 @@ export default function UserLayoutWrapper({
       );
     }
 
-    // A. JIKA KARENA PUTUS LANGGANAN (Hanya boleh akses halaman /dashboard/layanan)
+    // A. JIKA KARENA PUTUS LANGGANAN (Hanya boleh akses form pilih paket)
     if (suspensionType === 'CANCELLATION') {
       if (pathname !== '/dashboard/layanan') {
         return (
@@ -128,7 +140,7 @@ export default function UserLayoutWrapper({
               </div>
               <h2 className="text-2xl font-bold text-white mb-3">Layanan Dinonaktifkan</h2>
               <p className="text-white/50 text-sm mb-8 leading-relaxed">
-                Akun internet Anda saat ini dinonaktifkan sepenuhnya berdasarkan permohonan putus langganan Anda yang telah disetujui admin.
+                Akun internet Anda saat ini dinonaktifkan sepenuhnya berdasarkan permohonan putus langganan Anda.
               </p>
               <button
                 onClick={() => router.push('/dashboard/layanan')}
@@ -141,7 +153,6 @@ export default function UserLayoutWrapper({
         );
       }
 
-      // Jika sudah berada di /dashboard/layanan, render halaman tanpa Sidebar (Biar gak bisa diklik menu lain)
       return (
         <div className="min-h-screen bg-[#0F0F0F] flex flex-col font-sans">
           <div className="border-b border-white/5 bg-[#1A1A1A] px-6 py-4 flex justify-between items-center">
@@ -157,7 +168,7 @@ export default function UserLayoutWrapper({
       );
     }
 
-    // B. JIKA KARENA NUNGGAK BAYAR (Hanya boleh akses halaman /dashboard/tagihan)
+    // B. JIKA KARENA NUNGGAK BAYAR
     if (suspensionType === 'BILLING') {
       if (pathname !== '/dashboard/tagihan') {
         return (
@@ -171,7 +182,7 @@ export default function UserLayoutWrapper({
               </div>
               <h2 className="text-2xl font-bold text-white mb-3">Layanan Terisolasi ⚠️</h2>
               <p className="text-white/50 text-sm mb-8 leading-relaxed">
-                Akses internet Anda ditangguhkan sementara karena terdapat invoice/tagihan bulanan yang melewati jatuh tempo pembayaran.
+                Akses internet Anda ditangguhkan sementara karena terdapat tagihan yang melewati batas jatuh tempo pembayaran.
               </p>
               <button
                 onClick={() => router.push('/dashboard/tagihan')}
@@ -184,7 +195,6 @@ export default function UserLayoutWrapper({
         );
       }
 
-      // Jika sudah berada di /dashboard/tagihan, render halaman tagihan saja tanpa Sidebar menu lainnya
       return (
         <div className="min-h-screen bg-[#0F0F0F] flex flex-col font-sans">
           <div className="border-b border-white/5 bg-[#1A1A1A] px-6 py-4 flex justify-between items-center">
@@ -199,6 +209,41 @@ export default function UserLayoutWrapper({
         </div>
       );
     }
+
+    // 👇 C. JIKA LUNAS & BUKAN PUTUS LANGGANAN (MENUNGGU ADMIN) 👇
+    if (suspensionType === 'WAITING_ACTIVATION') {
+      return (
+        <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4 font-sans">
+          <div className="max-w-md w-full bg-[#1A1A1A] border border-blue-500/20 rounded-[2rem] p-8 text-center flex flex-col items-center shadow-2xl relative">
+            <button onClick={handleLogout} className="absolute top-6 right-6 p-2 text-white/40 hover:text-white/80 hover:bg-white/5 rounded-xl transition-all" title="Keluar">
+              <LogOut size={20} />
+            </button>
+            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
+              <Clock className="w-10 h-10 text-blue-500 animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Menunggu Pemulihan</h2>
+            <p className="text-white/50 text-sm mb-8 leading-relaxed">
+              Sistem mendeteksi bahwa tidak ada tunggakan tagihan pada akun Anda. Saat ini layanan sedang menunggu aktivasi dari Admin.
+            </p>
+            <a
+              href={`https://wa.me/${ADMIN_WA_NUMBER}?text=Halo Admin Cakrana, akun saya dengan ID ${user.customerCode} sudah tidak ada tunggakan, tolong bantu cek dan aktifkan kembali koneksi WiFi-nya ya. Terima kasih.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-[#25D366]/20 flex items-center justify-center gap-2 text-sm"
+            >
+              <MessageCircle size={20} />
+              Hubungi Admin via WA
+            </a>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 text-xs text-white/30 hover:text-white/60 transition-colors"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
 
   // ─── TAMPILAN NORMAL USER AKTIF ────────────────────────────────
@@ -206,7 +251,7 @@ export default function UserLayoutWrapper({
     <div className="min-h-screen bg-[#0F0F0F] flex font-sans">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
-        setIsSidebarOpen={setIsSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen}
         pathname={pathname} 
         unreadCount={unreadCount} 
         handleLogout={handleLogout} 
