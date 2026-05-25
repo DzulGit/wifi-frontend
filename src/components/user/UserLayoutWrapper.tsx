@@ -1,20 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Home,
-  CreditCard,
-  LifeBuoy,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  Bell,
-  Wifi,
-} from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
+import api from '@/lib/api';
+import Sidebar from './Sidebar';
+import Header from './Header';
+import FAQChatWidget from '@/components/user/FAQChatWidget';
+import { Ban, CreditCard, Package, LogOut, Clock, MessageCircle } from 'lucide-react'; // 👈 Tambahan icon Clock & Message
 
 export default function UserLayoutWrapper({
   children,
@@ -24,154 +17,254 @@ export default function UserLayoutWrapper({
   title: string;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  
+  // 👇 Tambahan State: WAITING_ACTIVATION
+  const [suspensionType, setSuspensionType] = useState<'CANCELLATION' | 'BILLING' | 'WAITING_ACTIVATION' | null>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
   const pathname = usePathname();
   const router = useRouter();
+  
+  const { user, logout, isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
 
-  // Ambil state & actions langsung dari store
-  const { 
-    user, 
-    logout, 
-    isAuthenticated, 
-    isAdmin, 
-    _hasHydrated 
-  } = useAuthStore();
+  // (Nomor WA Admin - Ganti dengan nomor asli lu)
+  const ADMIN_WA_NUMBER = '6285883934965'; 
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    
+    const fetchUnread = async () => {
+      try {
+        const { data } = await api.get('/notifications');
+        const notifs = data?.data || data || [];
+        const unread = notifs.filter((n: any) => !n.isRead).length;
+        setUnreadCount(unread);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchUnread();
+  }, [isAuthenticated, user?.id, pathname]);
+
+  // ── Deteksi Alasan Suspend (Mengecek History Request & Tagihan) ────────
+  useEffect(() => {
+    if (!isAuthenticated || user?.status !== 'SUSPENDED') return;
+
+    const checkSuspensionReason = async () => {
+      setIsCheckingStatus(true);
+      try {
+        // Tarik data request terakhir DAN data tagihan secara bersamaan (limit 100 biar narik semua)
+        const [resReq, resBills] = await Promise.all([
+          api.get('/service-requests/active').catch(() => ({ data: {} })),
+          api.get('/billing?limit=100').catch(() => ({ data: { data: [] } }))
+        ]);
+
+        const { lastRequest } = resReq.data;
+        const bills = resBills.data?.data || [];
+        
+        // Cek apakah ada tagihan yang belum dibayar / nunggak
+        const hasUnpaidBills = bills.some((b: any) => b.status === 'UNPAID' || b.status === 'OVERDUE');
+
+        if (hasUnpaidBills) {
+          // Kondisi 1: Punya tagihan -> Lempar ke halaman bayar
+          setSuspensionType('BILLING');
+        } else if (lastRequest?.type === 'CANCELLATION' && lastRequest?.status === 'APPROVED') {
+          // Kondisi 2: Gak ada tagihan TAPI last requestnya putus langganan -> Lempar ke Pilih Paket
+          setSuspensionType('CANCELLATION');
+        } else {
+          // Kondisi 3: Gak ada tagihan & bukan putus langganan -> Tinggal nunggu Admin aktifin
+          setSuspensionType('WAITING_ACTIVATION');
+        }
+      } catch (error) {
+        setSuspensionType('BILLING');
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+
+    checkSuspensionReason();
+  }, [isAuthenticated, user?.status]);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
-  // Guard Logic: Mencegah redirect sebelum data localStorage sinkron
   useEffect(() => {
-    if (!_hasHydrated) return;
+    if (!isMounted || !_hasHydrated) return;
 
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-
-    if (isAdmin) {
+    if (isAuthenticated && isAdmin) {
       router.push('/admin/dashboard');
       return;
     }
-  }, [_hasHydrated, isAuthenticated, isAdmin, router]);
+  }, [isMounted, _hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // Cegah render jika data belum siap untuk menghindari error "fullName of null"
-  if (!_hasHydrated || !isAuthenticated || isAdmin || !user) {
-    return null;
+  if (!isMounted || !_hasHydrated || (!isAuthenticated && typeof window !== 'undefined' && localStorage.getItem('cakrana-auth'))) {
+    return (
+      <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  const menuItems = [
-    { name: 'Beranda', icon: Home, path: '/dashboard' },
-    { name: 'Tagihan Saya', icon: CreditCard, path: '/dashboard/tagihan' },
-    { name: 'Bantuan & Laporan', icon: LifeBuoy, path: '/dashboard/bantuan' },
-    { name: 'Pengaturan Akun', icon: Settings, path: '/dashboard/pengaturan' },
-  ];
+  if (!isAuthenticated) return null;
 
-  return (
-    <div className="min-h-screen bg-[#0F0F0F] flex font-sans">
-      {/* ── SIDEBAR ── */}
-      <aside
-        className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#1A1A1A] border-r border-white/5 transform transition-transform duration-300 ease-in-out
-        lg:translate-x-0 lg:static lg:inset-0
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}
-      >
-        <div className="flex items-center justify-between h-20 px-6 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <Wifi className="w-6 h-6 text-[#F5A623]" />
-            <span className="text-[#F5A623] font-space-grotesk font-bold text-xl tracking-wide">
-              CAKRANA
-            </span>
-          </div>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden text-gray-400 hover:text-white"
-          >
-            <X className="w-6 h-6" />
-          </button>
+  // ── 🔐 LOGIC LOCK SCREEN GLOBAL (KHUSUS USER SUSPENDED) ─────────
+  if (user?.status === 'SUSPENDED') {
+    if (isCheckingStatus) {
+      return (
+        <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+          <div className="w-10 h-10 border-4 border-[#F5A623] border-t-transparent rounded-full animate-spin" />
         </div>
+      );
+    }
 
-        <div className="p-4 space-y-2 mt-4">
-          <p className="px-4 text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4">
-            Portal Menu
-          </p>
-          {menuItems.map((item) => {
-            const isActive =
-              item.path === '/dashboard'
-                ? pathname === '/dashboard'
-                : pathname === item.path ||
-                  pathname.startsWith(`${item.path}/`);
-            return (
-              <Link
-                key={item.name}
-                href={item.path}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-                  isActive
-                    ? 'bg-[#F5A623] text-black font-bold shadow-lg shadow-[#F5A623]/20'
-                    : 'text-white/60 hover:bg-white/5 hover:text-white font-medium'
-                }`}
+    // A. JIKA KARENA PUTUS LANGGANAN (Hanya boleh akses form pilih paket)
+    if (suspensionType === 'CANCELLATION') {
+      if (pathname !== '/dashboard/layanan') {
+        return (
+          <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4 font-sans">
+            <div className="max-w-md w-full bg-[#1A1A1A] border border-white/5 rounded-[2rem] p-8 text-center flex flex-col items-center shadow-2xl relative">
+              <button onClick={handleLogout} className="absolute top-6 right-6 p-2 text-white/40 hover:text-white/80 hover:bg-white/5 rounded-xl transition-all" title="Keluar">
+                <LogOut size={20} />
+              </button>
+              <div className="w-20 h-20 bg-[#F5A623]/10 rounded-full flex items-center justify-center mb-6">
+                <Package className="w-10 h-10 text-[#F5A623]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Layanan Dinonaktifkan</h2>
+              <p className="text-white/50 text-sm mb-8 leading-relaxed">
+                Akun internet Anda saat ini dinonaktifkan sepenuhnya berdasarkan permohonan putus langganan Anda.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard/layanan')}
+                className="w-full py-4 bg-[#F5A623] hover:bg-[#F5A623]/90 text-black rounded-xl font-bold transition-all active:scale-95 shadow-lg text-sm"
               >
-                <item.icon
-                  className={`w-5 h-5 ${isActive ? 'text-black' : 'text-white/40'}`}
-                />
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
-
-        <div className="absolute bottom-0 w-full p-4 border-t border-white/5">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors font-medium"
-          >
-            <LogOut className="w-5 h-5" />
-            Keluar
-          </button>
-        </div>
-      </aside>
-
-      {/* ── MAIN CONTENT AREA ── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* TOP NAVBAR */}
-        <header className="h-20 bg-[#1A1A1A]/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 sm:px-8 z-10 sticky top-0">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-white/60 hover:bg-white/5"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="text-xl font-bold text-white hidden sm:block">
-              {title}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-5">
-            <button className="relative p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#1A1A1A]"></span>
-            </button>
-            <div className="h-8 w-px bg-white/10"></div>
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-white">
-                  {user?.fullName || 'Pelanggan'}
-                </p>
-                <p className="text-xs text-[#F5A623] font-mono">
-                  {user?.customerCode || 'ID: -'}
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-[#F5A623] flex items-center justify-center text-black font-bold text-lg shadow-lg shadow-[#F5A623]/20">
-                {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-              </div>
+                Berlangganan Kembali
+              </button>
             </div>
           </div>
-        </header>
+        );
+      }
 
-        {/* PAGE CONTENT */}
+      return (
+        <div className="min-h-screen bg-[#0F0F0F] flex flex-col font-sans">
+          <div className="border-b border-white/5 bg-[#1A1A1A] px-6 py-4 flex justify-between items-center">
+            <span className="text-white font-bold tracking-wide">CAKRANA WIFI</span>
+            <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 font-medium transition-colors">
+              <LogOut size={16} /> Keluar
+            </button>
+          </div>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-8 flex items-center justify-center">
+            {children}
+          </main>
+        </div>
+      );
+    }
+
+    // B. JIKA KARENA NUNGGAK BAYAR
+    if (suspensionType === 'BILLING') {
+      if (pathname !== '/dashboard/tagihan') {
+        return (
+          <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4 font-sans">
+            <div className="max-w-md w-full bg-[#1A1A1A] border border-red-500/10 rounded-[2rem] p-8 text-center flex flex-col items-center shadow-2xl relative">
+              <button onClick={handleLogout} className="absolute top-6 right-6 p-2 text-white/40 hover:text-white/80 hover:bg-white/5 rounded-xl transition-all" title="Keluar">
+                <LogOut size={20} />
+              </button>
+              <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+                <CreditCard className="w-10 h-10 text-red-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-3">Layanan Terisolasi ⚠️</h2>
+              <p className="text-white/50 text-sm mb-8 leading-relaxed">
+                Akses internet Anda ditangguhkan sementara karena terdapat tagihan yang melewati batas jatuh tempo pembayaran.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard/tagihan')}
+                className="w-full py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg text-sm"
+              >
+                Bayar Tagihan Sekarang
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-[#0F0F0F] flex flex-col font-sans">
+          <div className="border-b border-white/5 bg-[#1A1A1A] px-6 py-4 flex justify-between items-center">
+            <span className="text-white font-bold tracking-wide text-red-500">LAYANAN TERISOLASI</span>
+            <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-white/60 hover:text-white font-medium transition-colors">
+              <LogOut size={16} /> Keluar
+            </button>
+          </div>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+            {children}
+          </main>
+        </div>
+      );
+    }
+
+    // 👇 C. JIKA LUNAS & BUKAN PUTUS LANGGANAN (MENUNGGU ADMIN) 👇
+    if (suspensionType === 'WAITING_ACTIVATION') {
+      return (
+        <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4 font-sans">
+          <div className="max-w-md w-full bg-[#1A1A1A] border border-blue-500/20 rounded-[2rem] p-8 text-center flex flex-col items-center shadow-2xl relative">
+            <button onClick={handleLogout} className="absolute top-6 right-6 p-2 text-white/40 hover:text-white/80 hover:bg-white/5 rounded-xl transition-all" title="Keluar">
+              <LogOut size={20} />
+            </button>
+            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
+              <Clock className="w-10 h-10 text-blue-500 animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Menunggu Pemulihan</h2>
+            <p className="text-white/50 text-sm mb-8 leading-relaxed">
+              Sistem mendeteksi bahwa tidak ada tunggakan tagihan pada akun Anda. Saat ini layanan sedang menunggu aktivasi dari Admin.
+            </p>
+            <a
+              href={`https://wa.me/${ADMIN_WA_NUMBER}?text=Halo Admin Cakrana, akun saya dengan ID ${user.customerCode} sudah tidak ada tunggakan, tolong bantu cek dan aktifkan kembali koneksi WiFi-nya ya. Terima kasih.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-[#25D366]/20 flex items-center justify-center gap-2 text-sm"
+            >
+              <MessageCircle size={20} />
+              Hubungi Admin via WA
+            </a>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 text-xs text-white/30 hover:text-white/60 transition-colors"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // ─── TAMPILAN NORMAL USER AKTIF ────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#0F0F0F] flex font-sans">
+      <Sidebar 
+        isSidebarOpen={isSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen}
+        pathname={pathname} 
+        unreadCount={unreadCount} 
+        handleLogout={handleLogout} 
+      />
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header 
+          title={title} 
+          user={user} 
+          unreadCount={unreadCount} 
+          setIsSidebarOpen={setIsSidebarOpen} 
+        />
+
         <main className="flex-1 overflow-y-auto p-4 sm:p-8">
           <h1 className="text-2xl font-bold text-white sm:hidden mb-6">
             {title}
@@ -180,13 +273,7 @@ export default function UserLayoutWrapper({
         </main>
       </div>
 
-      {/* Overlay Mobile */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      <FAQChatWidget />
     </div>
   );
 }
